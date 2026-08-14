@@ -1,19 +1,19 @@
-# Lab 1 — Peer Review Record  (fill this in)
+# Lab 1 — Peer Review Record
 
-**Author:** <your name> — <student id> — GitHub: @<username>
-**Peer reviewer:** <partner name> — <student id> — GitHub: @<username>
+**Author:** Chayanit Kuntanarumitkul — 67070503408 — GitHub: @chayanitkunt
+**Peer reviewer:** Kulchaya Paipinij — 67070503406 — GitHub: @chayongchaya
 
 ## Pull Requests I authored (reviewed by my partner)
 | PR | Branch | Reviewer verdict |
 |----|--------|------------------|
-|    | feature/1-project-foundation |  |
-|    | feature/2-health-check |  |
-|    | feature/3-category-seed |  |
-|    | feature/4-category-list |  |
+| PR #1 | feature/1-project-foundation | Approved |
+| PR #3 | feature/2-health-check | Approved |
+| PR #5 | feature/3-category-seed | Approved |
+| PR #8 | feature/4-category-list | Approved |
 
-Reviewer comment I received: <...>
-How I responded: <...>
+Reviewer comment I received: "perfect!"
+How I responded: "Thanks!"
 
 ## Pull Requests I reviewed for my partner
-My comment: <...>
-Partner's response: <...>
+My comment: "Nice work, Good to see"
+Partner's response: "Thanks for helping me."
