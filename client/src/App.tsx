@@ -7,13 +7,22 @@ type UiState = "idle" | "loading" | "success" | "error";
 export default function App() {
   const [state, setState] = useState<UiState>("idle");
   const [categories, setCategories] = useState<Category[]>([]);
-  void categories;
+  const [errorMessage, setErrorMessage] = useState<string>("");
 
   async function handleCheck() {
-    // TODO(Issue 4): set loading, call checkSystem(), then either
-    //   - success: store categories and show Online + the list, or
-    //   - error: show Offline + a useful message.
     setState("loading");
+    setErrorMessage("");
+
+    try {
+      const data = await checkSystem();
+      setCategories(data.categories);
+      setState("success");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "An unexpected error occurred"
+      );
+      setState("error");
+    }
   }
 
   return (
@@ -22,11 +31,45 @@ export default function App() {
         TokTickIT <span className="text-success">IT Service Desk</span>
       </h1>
 
-      <button className="btn btn-success" onClick={handleCheck} disabled={state === "loading"}>
-        {state === "loading" ? "Loading…" : "Check System"}
+      <button
+        className="btn btn-success mb-4"
+        onClick={handleCheck}
+        disabled={state === "loading"}
+      >
+        {state === "loading" ? "Loading…" : "[ Check System ]"}
       </button>
 
-      {/* TODO(Issue 4): render loading / success (Online + categories) / error (Offline) states. */}
+      {/* State: Loading */}
+      {state === "loading" && (
+        <div className="text-muted">Loading system information…</div>
+      )}
+
+      {/* State: Success */}
+      {state === "success" && (
+        <div className="card card-body bg-light border-0">
+          <p className="mb-2 fs-5">
+            <strong>System Status:</strong> <span className="text-success fw-bold">Online</span>
+          </p>
+          <p className="mb-2 fw-bold">Supported Request Categories:</p>
+          <ol className="mb-0 ps-3">
+            {categories.map((cat) => (
+              <li key={cat.id} className="py-1">
+                {cat.name}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {/* State: Error */}
+      {state === "error" && (
+        <div className="card card-body bg-light border-danger text-danger">
+          <p className="mb-1 fs-5">
+            <strong>System Status:</strong> <span className="fw-bold">Offline</span>
+          </p>
+          <p className="mb-0">{errorMessage || "Unable to connect to TokTickIT API"}</p>
+        </div>
+      )}
     </div>
   );
 }
