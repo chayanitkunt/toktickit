@@ -2,6 +2,7 @@ import { getPrisma } from "../src/prisma.js";
 
 // Issue 3 — seed the four supported categories.
 // Issue 12 — seed Development Requesters.
+// Issue 13 — seed Related Systems.
 async function main() {
   const prisma = getPrisma();
 
@@ -14,6 +15,24 @@ async function main() {
 
   for (const name of categories) {
     await prisma.category.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+  }
+
+  const relatedSystems = [
+    "Email",
+    "Campus Wi-Fi",
+    "VPN",
+    "LEB2 App",
+    "Grade Submission App",
+    "Printer",
+    "Corporate Laptop",
+  ];
+
+  for (const name of relatedSystems) {
+    await prisma.relatedSystem.upsert({
       where: { name },
       update: {},
       create: { name },
@@ -49,7 +68,7 @@ async function main() {
     });
   }
 
-  console.log("Categories and Requesters seeded successfully.");
+  console.log("Categories, Related Systems, and Requesters seeded successfully.");
 }
 
 main()
@@ -60,3 +79,4 @@ main()
   .finally(async () => {
     await getPrisma().$disconnect();
   });
+  
