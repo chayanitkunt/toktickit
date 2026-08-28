@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { checkSystem, Category } from "./api.js";
+import RequesterSelector from "./components/RequesterSelector.js";
 
 // UI states you must handle for Issue 4: idle, loading, success, error.
 type UiState = "idle" | "loading" | "success" | "error";
@@ -30,6 +31,8 @@ export default function App() {
       <h1 className="h3 mb-4">
         TokTickIT <span className="text-success">IT Service Desk</span>
       </h1>
+
+      <RequesterSelector />
 
       <button
         className="btn btn-success mb-4"
