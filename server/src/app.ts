@@ -53,4 +53,33 @@ app.get("/api/categories", async (_req: Request, res: Response) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Issue 12 — Development Requester list
+// Return only active Requesters for the temporary Development Requester
+// selection flow used before authentication is introduced in Lab 3.
+// ---------------------------------------------------------------------------
+app.get("/api/requesters", async (_req: Request, res: Response) => {
+  try {
+    const requesters = await getPrisma().requester.findMany({
+      where: {
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+      },
+      orderBy: {
+        id: "asc",
+      },
+    });
+
+    res.status(200).json(requesters);
+  } catch {
+    res.status(500).json({
+      error: "Unable to retrieve requesters",
+    });
+  }
+});
+
 export default app;

@@ -1,7 +1,7 @@
 import { getPrisma } from "../src/prisma.js";
 
 // Issue 3 — seed the four supported categories.
-// The seed is idempotent: running it multiple times does not create duplicates.
+// Issue 12 — seed Development Requesters.
 async function main() {
   const prisma = getPrisma();
 
@@ -20,7 +20,36 @@ async function main() {
     });
   }
 
-  console.log("Categories seeded successfully.");
+  const requesters = [
+    {
+      name: "Alice Johnson",
+      email: "alice@example.com",
+      isActive: true,
+    },
+    {
+      name: "Bob Smith",
+      email: "bob@example.com",
+      isActive: true,
+    },
+    {
+      name: "Charlie Brown",
+      email: "charlie@example.com",
+      isActive: false,
+    },
+  ];
+
+  for (const requester of requesters) {
+    await prisma.requester.upsert({
+      where: { email: requester.email },
+      update: {
+        name: requester.name,
+        isActive: requester.isActive,
+      },
+      create: requester,
+    });
+  }
+
+  console.log("Categories and Requesters seeded successfully.");
 }
 
 main()
@@ -31,4 +60,3 @@ main()
   .finally(async () => {
     await getPrisma().$disconnect();
   });
-  
