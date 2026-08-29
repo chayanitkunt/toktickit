@@ -5,7 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { getRequesters, Requester } from "./api.js";
+import { getRequesters, Requester } from "./api";
 
 interface DevelopmentRequesterContextValue {
   requesters: Requester[];
