@@ -1,4 +1,5 @@
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+const API_URL =
+  import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
 export interface Category {
   id: number;
@@ -17,28 +18,245 @@ export interface SystemStatus {
 }
 
 export async function checkSystem(): Promise<SystemStatus> {
-  // 1. Health check
   const healthRes = await fetch(`${API_URL}/api/health`);
+
   if (!healthRes.ok) {
     throw new Error("Unable to connect to TokTickIT API");
   }
 
-  // 2. Fetch categories
-  const categoriesRes = await fetch(`${API_URL}/api/categories`);
+  const categoriesRes = await fetch(
+    `${API_URL}/api/categories`
+  );
+
   if (!categoriesRes.ok) {
-    throw new Error("Unable to retrieve categories from API");
+    throw new Error(
+      "Unable to retrieve categories from API"
+    );
   }
 
-  const categories: Category[] = await categoriesRes.json();
-  return { online: true, categories };
+  const categories: Category[] =
+    await categoriesRes.json();
+
+  return {
+    online: true,
+    categories,
+  };
 }
 
 export async function getRequesters(): Promise<Requester[]> {
-  const response = await fetch(`${API_URL}/api/requesters`);
+  const response = await fetch(
+    `${API_URL}/api/requesters`
+  );
 
   if (!response.ok) {
-    throw new Error("Unable to retrieve requesters from API");
+    throw new Error(
+      "Unable to retrieve requesters from API"
+    );
   }
 
   return response.json();
+}
+
+// ---------------------------------------------------------
+// Ticket types
+// ---------------------------------------------------------
+
+export type RequestedPriority =
+  | "LOW"
+  | "MEDIUM"
+  | "HIGH";
+
+export type CurrentStatus =
+  | "NEW"
+  | "IN_PROGRESS"
+  | "RESOLVED"
+  | "CLOSED"
+  | "PENDING";
+
+// ---------------------------------------------------------
+// My Tickets
+// ---------------------------------------------------------
+
+export interface TicketListItem {
+  id: number;
+  ticketNumber: string;
+  createdAt: string;
+  summary: string;
+  categoryName: string;
+  relatedSystemName: string;
+  requestedPriority: RequestedPriority;
+  currentStatus: CurrentStatus;
+  lastUpdated: string;
+  attachmentCount: number;
+}
+
+export interface TicketListMeta {
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface TicketListResponse {
+  data: TicketListItem[];
+  meta: TicketListMeta;
+}
+
+export interface TicketListParams {
+  requesterId: number;
+  search?: string;
+  categoryId?: number;
+  priority?: RequestedPriority;
+  status?: CurrentStatus;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+  page?: number;
+  pageSize?: number;
+}
+
+export async function getMyTickets(
+  params: TicketListParams
+): Promise<TicketListResponse> {
+  const query = new URLSearchParams();
+
+  if (params.search) {
+    query.set("search", params.search);
+  }
+
+  if (params.categoryId !== undefined) {
+    query.set(
+      "categoryId",
+      String(params.categoryId)
+    );
+  }
+
+  if (params.priority) {
+    query.set("priority", params.priority);
+  }
+
+  if (params.status) {
+    query.set("status", params.status);
+  }
+
+  if (params.sortBy) {
+    query.set("sortBy", params.sortBy);
+  }
+
+  if (params.sortOrder) {
+    query.set("sortOrder", params.sortOrder);
+  }
+
+  query.set(
+    "page",
+    String(params.page ?? 1)
+  );
+
+  query.set(
+    "pageSize",
+    String(params.pageSize ?? 10)
+  );
+
+  const response = await fetch(
+    `${API_URL}/api/tickets?${query.toString()}`,
+    {
+      headers: {
+        "X-Requester-Id": String(
+          params.requesterId
+        ),
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      "Unable to retrieve tickets from API"
+    );
+  }
+
+  return response.json();
+}
+
+// ---------------------------------------------------------
+// Related Systems
+// ---------------------------------------------------------
+export interface RelatedSystem {
+  id: number;
+  name: string;
+  isActive: boolean;
+}
+
+export async function getRelatedSystems(): Promise<
+  RelatedSystem[]
+> {
+  const response = await fetch(
+    `${API_URL}/api/related-systems`
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      "Unable to retrieve related systems"
+    );
+  }
+
+  return response.json();
+}
+
+
+// ---------------------------------------------------------
+// Create Ticket
+// ---------------------------------------------------------
+
+export interface CreateTicketData {
+  categoryId: number;
+  relatedSystemId: number;
+  requestedPriority: RequestedPriority;
+  summary: string;
+  description: string;
+  attachments?: File[];
+}
+
+export async function createTicket(
+  requesterId: number,
+  data: CreateTicketData
+) {
+  const formData = new FormData();
+
+  formData.append("categoryId", String(data.categoryId));
+  formData.append(
+    "relatedSystemId",
+    String(data.relatedSystemId)
+  );
+  formData.append(
+    "requestedPriority",
+    data.requestedPriority
+  );
+  formData.append("summary", data.summary);
+  formData.append("description", data.description);
+
+  data.attachments?.forEach((file) => {
+    formData.append("attachments", file);
+  });
+
+  const response = await fetch(`${API_URL}/api/tickets`, {
+    method: "POST",
+    headers: {
+      "X-Requester-Id": String(requesterId),
+    },
+    body: formData,
+  });
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    if (result.errors) {
+      const messages = Object.values(result.errors).join("\n");
+      throw new Error(messages);
+    }
+
+    throw new Error(
+      result.message ?? "Unable to create ticket"
+    );
+  }
+
+  return result;
 }

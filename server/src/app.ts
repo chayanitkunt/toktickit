@@ -85,6 +85,28 @@ app.get("/api/categories", async (_req: Request, res: Response) => {
   }
 });
 
+app.get("/api/related-systems", async (_req: Request, res: Response) => {
+  try {
+    const systems = await getPrisma().relatedSystem.findMany({
+      where: {
+        isActive: true,
+      },
+      orderBy: {
+        name: "asc",
+      },
+    });
+
+    return res.json(systems);
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      statusCode: 500,
+      message: "Unable to retrieve related systems",
+    });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Issue 12 — Development Requester list
 // Return only active Requesters for the temporary Development Requester
@@ -312,6 +334,261 @@ const ticket = await getPrisma().ticket.create({
     return res.status(500).json({
       statusCode: 500,
       message: "Unable to create ticket",
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Issue 15 — My Tickets
+// Retrieve paginated tickets owned by the currently selected Requester.
+// ---------------------------------------------------------------------------
+
+app.get("/api/tickets", async (req: Request, res: Response) => {
+  try {
+    const requesterId = getRequesterId(req);
+
+    if (!requesterId) {
+      return res.status(400).json({
+        statusCode: 400,
+        message: "X-Requester-Id header is required",
+      });
+    }
+
+    // Verify that the requester exists and is active.
+    const requester = await getPrisma().requester.findFirst({
+      where: {
+        id: requesterId,
+        isActive: true,
+      },
+    });
+
+    if (!requester) {
+      return res.status(400).json({
+        statusCode: 400,
+        message: "Invalid or inactive requester",
+      });
+    }
+
+    const {
+      search,
+      categoryId,
+      priority,
+      status,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+      page = "1",
+      pageSize = "10",
+    } = req.query;
+
+    // ---------------------------------------------------------
+    // Pagination validation
+    // ---------------------------------------------------------
+
+    const parsedPage = Number(page);
+    const parsedPageSize = Number(pageSize);
+
+    if (
+      !Number.isInteger(parsedPage) ||
+      parsedPage < 1
+    ) {
+      return res.status(400).json({
+        statusCode: 400,
+        message: "Page must be a positive integer",
+      });
+    }
+
+    if (
+      !Number.isInteger(parsedPageSize) ||
+      parsedPageSize < 1 ||
+      parsedPageSize > 50
+    ) {
+      return res.status(400).json({
+        statusCode: 400,
+        message: "Page size must be between 1 and 50",
+      });
+    }
+
+    // ---------------------------------------------------------
+    // Build filters
+    // ---------------------------------------------------------
+
+    const where: any = {
+      // IMPORTANT:
+      // This is the ownership protection.
+      requesterId,
+    };
+
+    if (typeof search === "string" && search.trim() !== "") {
+      const searchText = search.trim();
+
+      where.OR = [
+        {
+          ticketNumber: {
+            contains: searchText,
+            mode: "insensitive",
+          },
+        },
+        {
+          summary: {
+            contains: searchText,
+            mode: "insensitive",
+          },
+        },
+      ];
+    }
+
+    if (categoryId !== undefined) {
+      const parsedCategoryId = Number(categoryId);
+
+      if (
+        !Number.isInteger(parsedCategoryId) ||
+        parsedCategoryId <= 0
+      ) {
+        return res.status(400).json({
+          statusCode: 400,
+          message: "categoryId must be a positive integer",
+        });
+      }
+
+      where.categoryId = parsedCategoryId;
+    }
+
+    if (priority !== undefined) {
+      if (
+        priority !== "LOW" &&
+        priority !== "MEDIUM" &&
+        priority !== "HIGH"
+      ) {
+        return res.status(400).json({
+          statusCode: 400,
+          message: "Invalid priority",
+        });
+      }
+
+      where.requestedPriority = priority;
+    }
+
+    if (status !== undefined) {
+      const allowedStatuses = [
+        "NEW",
+        "IN_PROGRESS",
+        "RESOLVED",
+        "CLOSED",
+        "PENDING",
+      ];
+
+      if (
+        typeof status !== "string" ||
+        !allowedStatuses.includes(status)
+      ) {
+        return res.status(400).json({
+          statusCode: 400,
+          message: "Invalid status",
+        });
+      }
+
+      where.currentStatus = status;
+    }
+
+    // ---------------------------------------------------------
+    // Sorting
+    // ---------------------------------------------------------
+
+    const allowedSortFields = [
+      "createdAt",
+      "updatedAt",
+      "ticketNumber",
+      "summary",
+      "requestedPriority",
+      "currentStatus",
+    ];
+
+    const selectedSortBy =
+      typeof sortBy === "string" && allowedSortFields.includes(sortBy)
+        ? sortBy
+        : "createdAt";
+
+    const selectedSortOrder =
+      sortOrder === "asc" ? "asc" : "desc";
+
+    // ---------------------------------------------------------
+    // Query database
+    // ---------------------------------------------------------
+
+    const skip = (parsedPage - 1) * parsedPageSize;
+
+    const [tickets, total] = await Promise.all([
+      getPrisma().ticket.findMany({
+        where,
+        skip,
+        take: parsedPageSize,
+        orderBy: {
+          [selectedSortBy]: selectedSortOrder,
+        },
+        include: {
+          category: {
+            select: {
+              name: true,
+            },
+          },
+          relatedSystem: {
+            select: {
+              name: true,
+            },
+          },
+          attachments: {
+            where: {
+              isRemoved: false,
+            },
+            select: {
+              id: true,
+            },
+          },
+        },
+      }),
+
+      getPrisma().ticket.count({
+        where,
+      }),
+    ]);
+
+    // ---------------------------------------------------------
+    // Transform database records to API response
+    // ---------------------------------------------------------
+
+    const data = tickets.map((ticket) => ({
+      id: ticket.id,
+      ticketNumber: ticket.ticketNumber,
+      createdAt: ticket.createdAt,
+      summary: ticket.summary,
+      categoryName: ticket.category.name,
+      relatedSystemName: ticket.relatedSystem.name,
+      requestedPriority: ticket.requestedPriority,
+      currentStatus: ticket.currentStatus,
+      lastUpdated: ticket.updatedAt,
+      attachmentCount: ticket.attachments.length,
+    }));
+
+    const totalPages =
+      total === 0
+        ? 0
+        : Math.ceil(total / parsedPageSize);
+
+    return res.status(200).json({
+      data,
+      meta: {
+        total,
+        page: parsedPage,
+        pageSize: parsedPageSize,
+        totalPages,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      statusCode: 500,
+      message: "Unable to retrieve tickets",
     });
   }
 });

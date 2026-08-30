@@ -1,4 +1,4 @@
-import { useDevelopmentRequester } from "../DevelopmentRequesterContext.js";
+import { useDevelopmentRequester } from "../DevelopmentRequesterContext";
 
 export default function RequesterSelector() {
   const {
