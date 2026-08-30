@@ -593,4 +593,351 @@ app.get("/api/tickets", async (req: Request, res: Response) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Issue 16 — Ticket Detail
+// Retrieve a ticket owned by the currently selected Requester.
+// ---------------------------------------------------------------------------
+
+app.get("/api/tickets/:id", async (req: Request, res: Response) => {
+  try {
+    const requesterId = getRequesterId(req);
+
+    if (!requesterId) {
+      return res.status(400).json({
+        statusCode: 400,
+        message: "X-Requester-Id header is required",
+      });
+    }
+
+    const ticketId = Number(req.params.id);
+
+    if (!Number.isInteger(ticketId) || ticketId <= 0) {
+      return res.status(400).json({
+        statusCode: 400,
+        message: "Invalid ticket id",
+      });
+    }
+
+    const ticket = await getPrisma().ticket.findFirst({
+      where: {
+        id: ticketId,
+        requesterId,
+      },
+      include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        relatedSystem: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        attachments: {
+          where: {
+            isRemoved: false,
+          },
+          select: {
+            id: true,
+            fileName: true,
+            fileSize: true,
+            mimeType: true,
+            createdAt: true,
+          },
+          orderBy: {
+            createdAt: "asc",
+          },
+        },
+      },
+    });
+
+    if (!ticket) {
+      return res.status(404).json({
+        statusCode: 404,
+        message: "Ticket not found",
+      });
+    }
+
+    return res.status(200).json(ticket);
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      statusCode: 500,
+      message: "Unable to retrieve ticket",
+    });
+  }
+});
+
+app.get(
+  "/api/tickets/:id/attachments/:attachmentId/download",
+  async (req: Request, res: Response) => {
+    try {
+      const requesterId = getRequesterId(req);
+
+      if (!requesterId) {
+        return res.status(400).json({
+          statusCode: 400,
+          message: "X-Requester-Id header is required",
+        });
+      }
+
+      const ticketId = Number(req.params.id);
+      const attachmentId = Number(req.params.attachmentId);
+
+      if (
+        !Number.isInteger(ticketId) ||
+        ticketId <= 0 ||
+        !Number.isInteger(attachmentId) ||
+        attachmentId <= 0
+      ) {
+        return res.status(400).json({
+          statusCode: 400,
+          message: "Invalid ticket or attachment ID",
+        });
+      }
+
+      // Find the attachment together with its ticket owner
+      const attachment = await getPrisma().attachment.findFirst({
+        where: {
+          id: attachmentId,
+          ticketId,
+          ticket: {
+            requesterId,
+          },
+        },
+      });
+
+      if (!attachment) {
+        return res.status(404).json({
+          statusCode: 404,
+          message: "Attachment not found",
+        });
+      }
+
+      // Removed attachments cannot be downloaded
+      if (attachment.isRemoved) {
+        return res.status(404).json({
+          statusCode: 404,
+          message: "Attachment not found",
+        });
+      }
+
+      // Make sure the stored file actually exists
+      if (!fs.existsSync(attachment.storagePath)) {
+        return res.status(404).json({
+          statusCode: 404,
+          message: "Attachment file not found",
+        });
+      }
+
+      return res.download(
+        attachment.storagePath,
+        attachment.fileName
+      );
+    } catch (error) {
+      console.error(error);
+
+      return res.status(500).json({
+        statusCode: 500,
+        message: "Unable to download attachment",
+      });
+    }
+  }
+);
+
+app.post(
+  "/api/tickets/:id/attachments",
+  upload.array("attachments", 5),
+  async (req: Request, res: Response) => {
+    try {
+      const requesterId = getRequesterId(req);
+
+      if (!requesterId) {
+        return res.status(400).json({
+          statusCode: 400,
+          message: "X-Requester-Id header is required",
+        });
+      }
+
+      const ticketId = Number(req.params.id);
+
+      if (!Number.isInteger(ticketId) || ticketId <= 0) {
+        return res.status(400).json({
+          statusCode: 400,
+          message: "Invalid ticket ID",
+        });
+      }
+
+      // Check ticket ownership
+      const ticket = await getPrisma().ticket.findFirst({
+        where: {
+          id: ticketId,
+          requesterId,
+        },
+      });
+
+      if (!ticket) {
+        return res.status(404).json({
+          statusCode: 404,
+          message: "Ticket not found",
+        });
+      }
+
+      const files = (req.files as Express.Multer.File[]) ?? [];
+
+      if (files.length === 0) {
+        return res.status(400).json({
+          statusCode: 400,
+          message: "At least one attachment is required",
+        });
+      }
+
+      // Count only active attachments
+      const activeAttachmentCount =
+        await getPrisma().attachment.count({
+          where: {
+            ticketId,
+            isRemoved: false,
+          },
+        });
+
+      if (activeAttachmentCount + files.length > 5) {
+        // Remove uploaded files because they cannot be stored
+        for (const file of files) {
+          if (fs.existsSync(file.path)) {
+            fs.unlinkSync(file.path);
+          }
+        }
+
+        return res.status(400).json({
+          statusCode: 400,
+          message: "A ticket cannot have more than 5 active attachments",
+        });
+      }
+
+      const attachments = await getPrisma().attachment.createMany({
+        data: files.map((file) => ({
+          ticketId,
+          fileName: file.originalname,
+          fileSize: file.size,
+          mimeType: file.mimetype,
+          storagePath: file.path,
+        })),
+      });
+
+      return res.status(201).json({
+        count: attachments.count,
+      });
+    } catch (error) {
+      console.error(error);
+
+      return res.status(500).json({
+        statusCode: 500,
+        message: "Unable to add attachments",
+      });
+    }
+  }
+);
+
+app.delete(
+  "/api/tickets/:id/attachments/:attachmentId",
+  async (req: Request, res: Response) => {
+    try {
+      const requesterId = getRequesterId(req);
+
+      if (!requesterId) {
+        return res.status(400).json({
+          statusCode: 400,
+          message: "X-Requester-Id header is required",
+        });
+      }
+
+      const ticketId = Number(req.params.id);
+      const attachmentId = Number(req.params.attachmentId);
+
+      if (!Number.isInteger(ticketId) || ticketId <= 0) {
+        return res.status(400).json({
+          statusCode: 400,
+          message: "Invalid ticket ID",
+        });
+      }
+
+      if (!Number.isInteger(attachmentId) || attachmentId <= 0) {
+        return res.status(400).json({
+          statusCode: 400,
+          message: "Invalid attachment ID",
+        });
+      }
+
+      const ticket = await getPrisma().ticket.findFirst({
+        where: {
+          id: ticketId,
+          requesterId,
+        },
+      });
+
+      if (!ticket) {
+        return res.status(404).json({
+          statusCode: 404,
+          message: "Ticket not found",
+        });
+      }
+
+      const attachment = await getPrisma().attachment.findFirst({
+        where: {
+          id: attachmentId,
+          ticketId,
+          isRemoved: false,
+        },
+      });
+
+      if (!attachment) {
+        return res.status(404).json({
+          statusCode: 404,
+          message: "Attachment not found",
+        });
+      }
+
+      const { reason } = req.body;
+
+      if (typeof reason !== "string" || reason.trim() === "") {
+        return res.status(400).json({
+          statusCode: 400,
+          message: "Removal reason is required",
+        });
+      }
+
+      const updatedAttachment =
+        await getPrisma().attachment.update({
+          where: {
+            id: attachmentId,
+          },
+          data: {
+            isRemoved: true,
+            removedAt: new Date(),
+            removedReason: reason.trim(),
+          },
+        });
+
+      return res.status(200).json({
+        id: updatedAttachment.id,
+        isRemoved: updatedAttachment.isRemoved,
+        removedAt: updatedAttachment.removedAt,
+        removedReason: updatedAttachment.removedReason,
+      });
+    } catch (error) {
+      console.error(error);
+
+      return res.status(500).json({
+        statusCode: 500,
+        message: "Unable to remove attachment",
+      });
+    }
+  }
+);
+
 export default app;

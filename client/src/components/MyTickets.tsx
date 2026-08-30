@@ -12,10 +12,12 @@ import { useDevelopmentRequester } from "../DevelopmentRequesterContext";
 
 interface MyTicketsProps {
   onCreateTicket?: () => void;
+  onOpenTicket?: (ticketId: number) => void;
 }
 
 export default function MyTickets({
   onCreateTicket,
+  onOpenTicket,
 }: MyTicketsProps) {
   const { currentRequester } = useDevelopmentRequester();
 
@@ -475,12 +477,7 @@ export default function MyTickets({
                       <button
                         type="button"
                         className="btn btn-link p-0"
-                        onClick={() =>
-                          console.log(
-                            "Open ticket:",
-                            ticket.id
-                          )
-                        }
+                        onClick={() => onOpenTicket?.(ticket.id)}
                       >
                         {ticket.ticketNumber}
                       </button>

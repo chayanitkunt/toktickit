@@ -1,13 +1,24 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { checkSystem, Category } from "./api";
 import RequesterSelector from "./components/RequesterSelector";
 import MyTickets from "./components/MyTickets";
 import CreateTicket from "./components/CreateTicket";
+import TicketDetail from "./components/TicketDetail";
+import { useDevelopmentRequester } from "./DevelopmentRequesterContext";
+
 
 type UiState = "idle" | "loading" | "success" | "error";
 
 export default function App() {
+  const { currentRequester } = useDevelopmentRequester();
   const [showCreateTicket, setShowCreateTicket] = useState(false);
+  const [selectedTicketId, setSelectedTicketId] =
+  useState<number | null>(null);
+
+  useEffect(() => {
+    setSelectedTicketId(null);
+    setShowCreateTicket(false);
+  }, [currentRequester?.id]);
 
   const [state, setState] = useState<UiState>("idle");
   const [categories, setCategories] = useState<Category[]>([]);
@@ -50,11 +61,22 @@ export default function App() {
           onCancel={() => setShowCreateTicket(false)}
           onCreated={() => setShowCreateTicket(false)}
         />
+      ) : selectedTicketId !== null && currentRequester ? (
+        <TicketDetail
+          ticketId={selectedTicketId}
+          requesterId={currentRequester.id}
+          onBack={() => setSelectedTicketId(null)}
+        />
       ) : (
+
         <MyTickets
           onCreateTicket={() => setShowCreateTicket(true)}
+          onOpenTicket={(ticketId) =>
+          setSelectedTicketId(ticketId)
+          }
         />
       )}
+
 
       <button
         className="btn btn-success mb-4"
