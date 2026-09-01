@@ -15,3 +15,7 @@ server/prisma/*.db
 # TypeScript compiled JavaScript
 client/**/*.js
 server/uploads/
+
+# Playwright
+client/playwright-report/
+client/test-results/
