@@ -43,6 +43,16 @@ export async function checkSystem(): Promise<SystemStatus> {
   };
 }
 
+export async function getCategories(): Promise<Category[]> {
+  const response = await fetch(`${API_URL}/api/categories`);
+
+  if (!response.ok) {
+    throw new Error("Unable to retrieve categories from API");
+  }
+
+  return response.json();
+}
+
 export async function getRequesters(): Promise<Requester[]> {
   const response = await fetch(
     `${API_URL}/api/requesters`
@@ -271,6 +281,9 @@ export interface TicketAttachment {
   fileSize: number;
   mimeType: string;
   createdAt: string;
+  isRemoved: boolean;
+  removedAt: string | null;
+  removedReason: string | null;
 }
 
 export interface TicketDetail {
@@ -408,4 +421,3 @@ export async function downloadAttachment(
 
   return response.blob();
 }
-

@@ -1,137 +1,190 @@
-import { useEffect, useState } from "react";
-import { checkSystem, Category } from "./api";
-import RequesterSelector from "./components/RequesterSelector";
-import MyTickets from "./components/MyTickets";
+import { useState } from "react";
 import CreateTicket from "./components/CreateTicket";
+import MyTickets from "./components/MyTickets";
+import RequesterSelector from "./components/RequesterSelector";
 import TicketDetail from "./components/TicketDetail";
 import { useDevelopmentRequester } from "./DevelopmentRequesterContext";
 
-
-type UiState = "idle" | "loading" | "success" | "error";
+type Screen =
+  | "requester"
+  | "tickets"
+  | "create"
+  | "detail";
 
 export default function App() {
   const { currentRequester } = useDevelopmentRequester();
-  const [showCreateTicket, setShowCreateTicket] = useState(false);
+
+  const [screen, setScreen] = useState<Screen>(
+    currentRequester ? "tickets" : "requester"
+  );
+
   const [selectedTicketId, setSelectedTicketId] =
-  useState<number | null>(null);
+    useState<number | null>(null);
 
-  useEffect(() => {
-    setSelectedTicketId(null);
-    setShowCreateTicket(false);
-  }, [currentRequester?.id]);
-
-  const [state, setState] = useState<UiState>("idle");
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [errorMessage, setErrorMessage] = useState<string>("");
-
-  async function handleCheck() {
-    setState("loading");
-    setErrorMessage("");
-
-    try {
-      const data = await checkSystem();
-      setCategories(data.categories);
-      setState("success");
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "An unexpected error occurred"
-      );
-      setState("error");
+  function handleRequesterContinue() {
+    if (currentRequester) {
+      setScreen("tickets");
     }
+  }
+
+  function handleCreateTicket() {
+    setScreen("create");
+  }
+
+  function handleTicketCreated() {
+    setScreen("tickets");
+  }
+
+  function handleOpenTicket(ticketId: number) {
+    setSelectedTicketId(ticketId);
+    setScreen("detail");
+  }
+
+  function handleBackToTickets() {
+    setSelectedTicketId(null);
+    setScreen("tickets");
+  }
+
+  function handleChangeRequester() {
+    setScreen("requester");
   }
 
   return (
     <div
-  className="container py-5"
-  style={{ maxWidth: "1300px" }}
->
-      <h1 className="h3 mb-4">
-        TokTickIT{" "}
-        <span className="text-success">
-          IT Service Desk
-        </span>
-      </h1>
-
-      <RequesterSelector />
-
-      {showCreateTicket ? (
-        <CreateTicket
-          onCancel={() => setShowCreateTicket(false)}
-          onCreated={() => setShowCreateTicket(false)}
-        />
-      ) : selectedTicketId !== null && currentRequester ? (
-        <TicketDetail
-          ticketId={selectedTicketId}
-          requesterId={currentRequester.id}
-          onBack={() => setSelectedTicketId(null)}
-        />
-      ) : (
-
-        <MyTickets
-          onCreateTicket={() => setShowCreateTicket(true)}
-          onOpenTicket={(ticketId) =>
-          setSelectedTicketId(ticketId)
-          }
-        />
-      )}
-
-
-      <button
-        className="btn btn-success mb-4"
-        onClick={handleCheck}
-        disabled={state === "loading"}
+      style={{
+        minHeight: "100vh",
+        backgroundColor: "#F5F7F6",
+        color: "#1A2E26",
+      }}
+    >
+      {/* Global Header */}
+      <header
+        style={{
+          backgroundColor: "#006B3C",
+          color: "#FFFFFF",
+        }}
       >
-        {state === "loading"
-          ? "Loading…"
-          : "[ Check System ]"}
-      </button>
+        <div
+          className="container-fluid px-3 px-md-4"
+          style={{
+            maxWidth: "1200px",
+            margin: "0 auto",
+          }}
+        >
+          <div
+            className="d-flex flex-wrap align-items-center justify-content-between py-2 gap-2"
+            style={{ minHeight: "64px" }}
+          >
+            {/* Left: Logo + Navigation */}
+            <div className="d-flex align-items-center gap-3">
+              {/* Logo */}
+              <div className="d-flex align-items-center gap-2">
+                <span style={{ fontSize: "1.5rem" }}>◷</span>
+                <h1
+                  className="fw-bold mb-0 text-white"
+                  style={{ fontSize: "1.25rem" }}
+                >
+                  TokTickIT
+                </h1>
+              </div>
 
-      {state === "loading" && (
-        <div className="text-muted">
-          Loading system information…
+              {/* Main Navigation */}
+              {currentRequester && screen !== "requester" && (
+                <nav
+                  className="d-flex align-items-center gap-1 ms-2 ms-md-3"
+                  aria-label="Main navigation"
+                >
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => setScreen("tickets")}
+                    style={{
+                      color: "#FFFFFF",
+                      border: "none",
+                      backgroundColor:
+                        screen === "tickets"
+                          ? "#0B7A46"
+                          : "transparent",
+                    }}
+                  >
+                    My Tickets
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={handleCreateTicket}
+                    style={{
+                      color: "#FFFFFF",
+                      border: "none",
+                      backgroundColor:
+                        screen === "create"
+                          ? "#0B7A46"
+                          : "transparent",
+                    }}
+                  >
+                    + Create Ticket
+                  </button>
+                </nav>
+              )}
+            </div>
+
+            {/* Right: Requester Identity */}
+            {currentRequester && screen !== "requester" && (
+              <button
+                type="button"
+                onClick={handleChangeRequester}
+                className="btn btn-sm text-white border-white-50 ms-auto"
+                style={{
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {currentRequester.name}
+              </button>
+            )}
+          </div>
         </div>
-      )}
+      </header>
 
-      {state === "success" && (
-        <div className="card card-body bg-light border-0">
-          <p className="mb-2 fs-5">
-            <strong>System Status:</strong>{" "}
-            <span className="text-success fw-bold">
-              Online
-            </span>
-          </p>
+      {/* Main Content */}
+      <main
+        className="container py-4"
+        style={{
+          maxWidth: "1200px",
+          margin: "0 auto",
+        }}
+      >
+        {screen === "requester" && (
+          <RequesterSelector
+            onContinue={handleRequesterContinue}
+          />
+        )}
 
-          <p className="mb-2 fw-bold">
-            Supported Request Categories:
-          </p>
+        {screen === "tickets" && currentRequester && (
+          <MyTickets
+            onCreateTicket={handleCreateTicket}
+            onOpenTicket={handleOpenTicket}
+          />
+        )}
 
-          <ol className="mb-0 ps-3">
-            {categories.map((cat) => (
-              <li key={cat.id} className="py-1">
-                {cat.name}
-              </li>
-            ))}
-          </ol>
-        </div>
-      )}
+       {screen === "create" && currentRequester && (
+          <CreateTicket
+            requesterId={currentRequester.id}
+            onCancel={handleBackToTickets}
+            onCreated={handleTicketCreated}
+          />
+        )}
 
-      {state === "error" && (
-        <div className="card card-body bg-light border-danger text-danger">
-          <p className="mb-1 fs-5">
-            <strong>System Status:</strong>{" "}
-            <span className="fw-bold">
-              Offline
-            </span>
-          </p>
-
-          <p className="mb-0">
-            {errorMessage ||
-              "Unable to connect to TokTickIT API"}
-          </p>
-        </div>
-      )}
+        {screen === "detail" &&
+          currentRequester &&
+          selectedTicketId !== null && (
+            <TicketDetail
+              ticketId={selectedTicketId}
+              requesterId={currentRequester.id}
+              onBack={handleBackToTickets}
+            />
+          )}
+      </main>
     </div>
   );
 }

@@ -9,7 +9,8 @@
     "start": "node dist/index.js",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e:reset": "tsx scripts/reset-e2e-data.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

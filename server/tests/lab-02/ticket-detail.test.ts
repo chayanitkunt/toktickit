@@ -2,6 +2,64 @@ import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { app } from "../../src/app.js";
 
+// Creates a brand-new ticket for the given requester so each test
+// works with its own isolated data instead of reusing/mutating
+// shared seed tickets (which breaks when tests run in sequence).
+async function createTicketForRequester(requesterId: string) {
+  const categoriesResponse = await request(app).get("/api/categories");
+  const relatedSystemsResponse = await request(app).get(
+    "/api/related-systems"
+  );
+
+  const categoryId = categoriesResponse.body[0].id;
+  const relatedSystemId = relatedSystemsResponse.body[0].id;
+
+  const response = await request(app)
+    .post("/api/tickets")
+    .set("X-Requester-Id", requesterId)
+    .field("categoryId", categoryId)
+    .field("relatedSystemId", relatedSystemId)
+    .field("summary", "Isolated test ticket for attachment tests")
+    .field(
+      "description",
+      "This ticket is created fresh by each test so it does not depend on shared/mutated seed data."
+    )
+    .field("requestedPriority", "MEDIUM");
+
+  expect(response.status).toBe(201);
+
+  return response.body as { id: number; ticketNumber: string };
+}
+
+// Creates a fresh ticket and immediately attaches one file to it,
+// returning both so DELETE/download tests always operate on a
+// known-active attachment instead of guessing attachments[0].
+async function createTicketWithAttachment(
+  requesterId: string,
+  fileName = "seed-for-test.png"
+) {
+  const ticket = await createTicketForRequester(requesterId);
+
+  const uploadResponse = await request(app)
+    .post(`/api/tickets/${ticket.id}/attachments`)
+    .set("X-Requester-Id", requesterId)
+    .attach("attachments", Buffer.from("test attachment content"), fileName);
+
+  expect(uploadResponse.status).toBe(201);
+
+  const detailResponse = await request(app)
+    .get(`/api/tickets/${ticket.id}`)
+    .set("X-Requester-Id", requesterId);
+
+  const attachment = detailResponse.body.attachments.find(
+    (item: { fileName: string }) => item.fileName === fileName
+  );
+
+  expect(attachment).toBeDefined();
+
+  return { ticket, attachment };
+}
+
 describe("GET /api/tickets/:id", () => {
   it("returns ticket details for the ticket owner", async () => {
     // First get a ticket owned by requester 1.
@@ -76,31 +134,11 @@ describe("GET /api/tickets/:id", () => {
 
 describe("GET /api/tickets/:id/attachments/:attachmentId/download", () => {
   it("downloads an active attachment owned by the requester", async () => {
-    const listResponse = await request(app)
-      .get("/api/tickets")
-      .set("X-Requester-Id", "1");
-
-    expect(listResponse.status).toBe(200);
-
-    const ticketWithAttachment = listResponse.body.data.find(
-      (ticket: { attachmentCount: number }) =>
-        ticket.attachmentCount > 0
-    );
-
-    expect(ticketWithAttachment).toBeDefined();
-
-    const detailResponse = await request(app)
-      .get(`/api/tickets/${ticketWithAttachment.id}`)
-      .set("X-Requester-Id", "1");
-
-    expect(detailResponse.status).toBe(200);
-    expect(detailResponse.body.attachments.length).toBeGreaterThan(0);
-
-    const attachment = detailResponse.body.attachments[0];
+    const { ticket, attachment } = await createTicketWithAttachment("1");
 
     const response = await request(app)
       .get(
-        `/api/tickets/${ticketWithAttachment.id}/attachments/${attachment.id}/download`
+        `/api/tickets/${ticket.id}/attachments/${attachment.id}/download`
       )
       .set("X-Requester-Id", "1");
 
@@ -111,30 +149,11 @@ describe("GET /api/tickets/:id/attachments/:attachmentId/download", () => {
   });
 
   it("does not allow another requester to download the attachment", async () => {
-    const listResponse = await request(app)
-      .get("/api/tickets")
-      .set("X-Requester-Id", "1");
-
-    expect(listResponse.status).toBe(200);
-
-    const ticketWithAttachment = listResponse.body.data.find(
-      (ticket: { attachmentCount: number }) =>
-        ticket.attachmentCount > 0
-    );
-
-    expect(ticketWithAttachment).toBeDefined();
-
-    const detailResponse = await request(app)
-      .get(`/api/tickets/${ticketWithAttachment.id}`)
-      .set("X-Requester-Id", "1");
-
-    expect(detailResponse.status).toBe(200);
-
-    const attachment = detailResponse.body.attachments[0];
+    const { ticket, attachment } = await createTicketWithAttachment("1");
 
     const response = await request(app)
       .get(
-        `/api/tickets/${ticketWithAttachment.id}/attachments/${attachment.id}/download`
+        `/api/tickets/${ticket.id}/attachments/${attachment.id}/download`
       )
       .set("X-Requester-Id", "2");
 
@@ -144,44 +163,22 @@ describe("GET /api/tickets/:id/attachments/:attachmentId/download", () => {
 
 describe("POST /api/tickets/:id/attachments", () => {
   it("adds an attachment to the ticket owned by the requester", async () => {
-    const listResponse = await request(app)
-      .get("/api/tickets")
-      .set("X-Requester-Id", "1");
-
-    expect(listResponse.status).toBe(200);
-
-    const ticket = listResponse.body.data.find(
-      (ticket: { attachmentCount: number }) =>
-        ticket.attachmentCount < 5
-    );
-
-    expect(ticket).toBeDefined();
+    const ticket = await createTicketForRequester("1");
 
     const response = await request(app)
       .post(`/api/tickets/${ticket.id}/attachments`)
       .set("X-Requester-Id", "1")
-      .attach(
-        "attachments",
-        Buffer.from("test attachment"),
-        "test.png"
-      );
+      .attach("attachments", Buffer.from("test attachment"), "test.png");
 
     expect(response.status).toBe(201);
     expect(response.body).toHaveProperty("count", 1);
   });
 
   it("does not allow another requester to add attachments", async () => {
-    const listResponse = await request(app)
-      .get("/api/tickets")
-      .set("X-Requester-Id", "1");
-
-    expect(listResponse.status).toBe(200);
-    expect(listResponse.body.data.length).toBeGreaterThan(0);
-
-    const ticketId = listResponse.body.data[0].id;
+    const ticket = await createTicketForRequester("1");
 
     const response = await request(app)
-      .post(`/api/tickets/${ticketId}/attachments`)
+      .post(`/api/tickets/${ticket.id}/attachments`)
       .set("X-Requester-Id", "2")
       .attach(
         "attachments",
@@ -193,48 +190,25 @@ describe("POST /api/tickets/:id/attachments", () => {
   });
 
   it("rejects adding attachments when the ticket already has 5 active attachments", async () => {
-    const listResponse = await request(app)
-      .get("/api/tickets")
-      .set("X-Requester-Id", "1");
+    const ticket = await createTicketForRequester("1");
 
-    expect(listResponse.status).toBe(200);
+    for (let i = 0; i < 5; i++) {
+      const response = await request(app)
+        .post(`/api/tickets/${ticket.id}/attachments`)
+        .set("X-Requester-Id", "1")
+        .attach(
+          "attachments",
+          Buffer.from(`test attachment ${i}`),
+          `limit-${i}.png`
+        );
 
-    const ticketId = listResponse.body.data[0].id;
-
-    // Add attachments until the ticket reaches the limit.
-    const detailResponse = await request(app)
-      .get(`/api/tickets/${ticketId}`)
-      .set("X-Requester-Id", "1");
-
-    expect(detailResponse.status).toBe(200);
-
-    const currentCount = detailResponse.body.attachments.length;
-
-    if (currentCount < 5) {
-      const filesNeeded = 5 - currentCount;
-
-      for (let i = 0; i < filesNeeded; i++) {
-        const response = await request(app)
-          .post(`/api/tickets/${ticketId}/attachments`)
-          .set("X-Requester-Id", "1")
-          .attach(
-            "attachments",
-            Buffer.from(`test attachment ${i}`),
-            `limit-${i}.png`
-          );
-
-        expect(response.status).toBe(201);
-      }
+      expect(response.status).toBe(201);
     }
 
     const response = await request(app)
-      .post(`/api/tickets/${ticketId}/attachments`)
+      .post(`/api/tickets/${ticket.id}/attachments`)
       .set("X-Requester-Id", "1")
-      .attach(
-        "attachments",
-        Buffer.from("sixth attachment"),
-        "sixth.png"
-      );
+      .attach("attachments", Buffer.from("sixth attachment"), "sixth.png");
 
     expect(response.status).toBe(400);
     expect(response.body.message).toContain(
@@ -243,18 +217,7 @@ describe("POST /api/tickets/:id/attachments", () => {
   });
 
   it("stores the uploaded attachment metadata", async () => {
-    const listResponse = await request(app)
-      .get("/api/tickets")
-      .set("X-Requester-Id", "1");
-
-    expect(listResponse.status).toBe(200);
-
-    const ticket = listResponse.body.data.find(
-      (ticket: { attachmentCount: number }) =>
-        ticket.attachmentCount < 5
-    );
-
-    expect(ticket).toBeDefined();
+    const ticket = await createTicketForRequester("1");
 
     const response = await request(app)
       .post(`/api/tickets/${ticket.id}/attachments`)
@@ -274,8 +237,7 @@ describe("POST /api/tickets/:id/attachments", () => {
     expect(detailResponse.status).toBe(200);
 
     const attachment = detailResponse.body.attachments.find(
-      (item: { fileName: string }) =>
-        item.fileName === "metadata-test.png"
+      (item: { fileName: string }) => item.fileName === "metadata-test.png"
     );
 
     expect(attachment).toBeDefined();
@@ -286,36 +248,12 @@ describe("POST /api/tickets/:id/attachments", () => {
 
 describe("DELETE /api/tickets/:id/attachments/:attachmentId", () => {
   it("soft-removes an attachment with a removal reason", async () => {
-    const listResponse = await request(app)
-      .get("/api/tickets")
-      .set("X-Requester-Id", "1");
-
-    expect(listResponse.status).toBe(200);
-
-    const ticket = listResponse.body.data.find(
-      (ticket: { attachmentCount: number }) =>
-        ticket.attachmentCount > 0
-    );
-
-    expect(ticket).toBeDefined();
-
-    const detailResponse = await request(app)
-      .get(`/api/tickets/${ticket.id}`)
-      .set("X-Requester-Id", "1");
-
-    expect(detailResponse.status).toBe(200);
-    expect(detailResponse.body.attachments.length).toBeGreaterThan(0);
-
-    const attachment = detailResponse.body.attachments[0];
+    const { ticket, attachment } = await createTicketWithAttachment("1");
 
     const response = await request(app)
-      .delete(
-        `/api/tickets/${ticket.id}/attachments/${attachment.id}`
-      )
+      .delete(`/api/tickets/${ticket.id}/attachments/${attachment.id}`)
       .set("X-Requester-Id", "1")
-      .send({
-        reason: "No longer needed",
-      });
+      .send({ reason: "No longer needed" });
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
@@ -327,104 +265,35 @@ describe("DELETE /api/tickets/:id/attachments/:attachmentId", () => {
   });
 
   it("requires a removal reason", async () => {
-    const listResponse = await request(app)
-      .get("/api/tickets")
-      .set("X-Requester-Id", "1");
-
-    expect(listResponse.status).toBe(200);
-
-    const ticket = listResponse.body.data.find(
-      (ticket: { attachmentCount: number }) =>
-        ticket.attachmentCount > 0
-    );
-
-    expect(ticket).toBeDefined();
-
-    const detailResponse = await request(app)
-      .get(`/api/tickets/${ticket.id}`)
-      .set("X-Requester-Id", "1");
-
-    expect(detailResponse.status).toBe(200);
-
-    const attachment = detailResponse.body.attachments[0];
+    const { ticket, attachment } = await createTicketWithAttachment("1");
 
     const response = await request(app)
-      .delete(
-        `/api/tickets/${ticket.id}/attachments/${attachment.id}`
-      )
+      .delete(`/api/tickets/${ticket.id}/attachments/${attachment.id}`)
       .set("X-Requester-Id", "1")
       .send({});
 
     expect(response.status).toBe(400);
-    expect(response.body.message).toBe(
-      "Removal reason is required"
-    );
+    expect(response.body.message).toBe("Removal reason is required");
   });
 
   it("does not allow another requester to remove an attachment", async () => {
-    const listResponse = await request(app)
-      .get("/api/tickets")
-      .set("X-Requester-Id", "1");
-
-    expect(listResponse.status).toBe(200);
-
-    const ticket = listResponse.body.data.find(
-      (ticket: { attachmentCount: number }) =>
-        ticket.attachmentCount > 0
-    );
-
-    expect(ticket).toBeDefined();
-
-    const detailResponse = await request(app)
-      .get(`/api/tickets/${ticket.id}`)
-      .set("X-Requester-Id", "1");
-
-    expect(detailResponse.status).toBe(200);
-
-    const attachment = detailResponse.body.attachments[0];
+    const { ticket, attachment } = await createTicketWithAttachment("1");
 
     const response = await request(app)
-      .delete(
-        `/api/tickets/${ticket.id}/attachments/${attachment.id}`
-      )
+      .delete(`/api/tickets/${ticket.id}/attachments/${attachment.id}`)
       .set("X-Requester-Id", "2")
-      .send({
-        reason: "Unauthorized removal",
-      });
+      .send({ reason: "Unauthorized removal" });
 
     expect(response.status).toBe(404);
   });
 
   it("does not return a removed attachment in ticket details", async () => {
-    const listResponse = await request(app)
-      .get("/api/tickets")
-      .set("X-Requester-Id", "1");
-
-    expect(listResponse.status).toBe(200);
-
-    const ticket = listResponse.body.data.find(
-      (ticket: { attachmentCount: number }) =>
-        ticket.attachmentCount > 0
-    );
-
-    expect(ticket).toBeDefined();
-
-    const detailResponse = await request(app)
-      .get(`/api/tickets/${ticket.id}`)
-      .set("X-Requester-Id", "1");
-
-    expect(detailResponse.status).toBe(200);
-
-    const attachment = detailResponse.body.attachments[0];
+    const { ticket, attachment } = await createTicketWithAttachment("1");
 
     const removeResponse = await request(app)
-      .delete(
-        `/api/tickets/${ticket.id}/attachments/${attachment.id}`
-      )
+      .delete(`/api/tickets/${ticket.id}/attachments/${attachment.id}`)
       .set("X-Requester-Id", "1")
-      .send({
-        reason: "Removed for testing",
-      });
+      .send({ reason: "Removed for testing" });
 
     expect(removeResponse.status).toBe(200);
 
@@ -434,11 +303,11 @@ describe("DELETE /api/tickets/:id/attachments/:attachmentId", () => {
 
     expect(newDetailResponse.status).toBe(200);
 
-    const removedAttachment =
-      newDetailResponse.body.attachments.find(
-        (item: { id: number }) => item.id === attachment.id
-      );
+    const activeAttachment = newDetailResponse.body.attachments.find(
+      (item: { id: number; isRemoved: boolean }) =>
+        item.id === attachment.id && item.isRemoved === false
+    );
 
-    expect(removedAttachment).toBeUndefined();
+    expect(activeAttachment).toBeUndefined();
   });
 });

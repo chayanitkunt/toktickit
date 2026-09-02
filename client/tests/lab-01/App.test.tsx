@@ -33,59 +33,59 @@ describe("App", () => {
   });
 
   it("shows Online and the seeded categories on success", async () => {
-    vi.spyOn(api, "checkSystem").mockResolvedValueOnce({
-      online: true,
-      categories: [
-        { id: 1, name: "Account and Access" },
-        { id: 2, name: "Hardware" },
-        { id: 3, name: "Software" },
-        { id: 4, name: "Network" },
-      ],
-    });
-
-    render(
-      <DevelopmentRequesterProvider>
-        <App />
-      </DevelopmentRequesterProvider>
-    );
-
-    const checkBtn = screen.getByRole("button", {
-      name: /Check System/i,
-    });
-
-    fireEvent.click(checkBtn);
-
-    await waitFor(() => {
-      expect(screen.getByText(/Online/i)).toBeInTheDocument();
-      expect(screen.getByText("Account and Access")).toBeInTheDocument();
-      expect(screen.getByText("Hardware")).toBeInTheDocument();
-      expect(screen.getByText("Software")).toBeInTheDocument();
-      expect(screen.getByText("Network")).toBeInTheDocument();
-    });
+  vi.spyOn(api, "checkSystem").mockResolvedValueOnce({
+    online: true,
+    categories: [
+      { id: 1, name: "Account and Access" },
+      { id: 2, name: "Hardware" },
+      { id: 3, name: "Software" },
+      { id: 4, name: "Network" },
+    ],
   });
 
-  it("shows an Offline error message when the API is unavailable", async () => {
-    vi.spyOn(api, "checkSystem").mockRejectedValueOnce(
-      new Error("Unable to connect to TokTickIT API")
-    );
+  render(
+    <DevelopmentRequesterProvider>
+      <App />
+    </DevelopmentRequesterProvider>
+  );
 
-    render(
-      <DevelopmentRequesterProvider>
-        <App />
-      </DevelopmentRequesterProvider>
-    );
+  const checkBtn = await screen.findByRole("button", {
+    name: /Check System/i,
+  });
 
-    const checkBtn = screen.getByRole("button", {
-      name: /Check System/i,
-    });
+  fireEvent.click(checkBtn);
 
-    fireEvent.click(checkBtn);
+  await waitFor(() => {
+    expect(screen.getByText(/Online/i)).toBeInTheDocument();
+    expect(screen.getByText("Account and Access")).toBeInTheDocument();
+    expect(screen.getByText("Hardware")).toBeInTheDocument();
+    expect(screen.getByText("Software")).toBeInTheDocument();
+    expect(screen.getByText("Network")).toBeInTheDocument();
+  });
+});
 
-    await waitFor(() => {
-      expect(screen.getByText(/Offline/i)).toBeInTheDocument();
-      expect(
-        screen.getByText("Unable to connect to TokTickIT API")
-      ).toBeInTheDocument();
-    });
+it("shows an Offline error message when the API is unavailable", async () => {
+  vi.spyOn(api, "checkSystem").mockRejectedValueOnce(
+    new Error("Unable to connect to TokTickIT API")
+  );
+
+  render(
+    <DevelopmentRequesterProvider>
+      <App />
+    </DevelopmentRequesterProvider>
+  );
+
+  const checkBtn = await screen.findByRole("button", {
+    name: /Check System/i,
+  });
+
+  fireEvent.click(checkBtn);
+
+  await waitFor(() => {
+    expect(screen.getByText(/Offline/i)).toBeInTheDocument();
+    expect(
+      screen.getByText("Unable to connect to TokTickIT API")
+    ).toBeInTheDocument();
+  });
   });
 });

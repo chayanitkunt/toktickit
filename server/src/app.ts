@@ -153,14 +153,6 @@ function getRequesterId(req: Request): number | null {
     : null;
 }
 
-function generateTicketNumber(): string {
-  const year = new Date().getFullYear();
-  const number = Math.floor(Math.random() * 1_000_000)
-    .toString()
-    .padStart(6, "0");
-
-  return `TKT-${year}-${number}`;
-}
 
 app.post(
   "/api/tickets",
@@ -285,27 +277,14 @@ app.post(
       });
     }
 
-    let ticketNumber = generateTicketNumber();
-
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const existingTicket = await getPrisma().ticket.findUnique({
-        where: {
-          ticketNumber,
-        },
-      });
-
-      if (!existingTicket) {
-        break;
-      }
-
-      ticketNumber = generateTicketNumber();
-    }
 
     const files = (req.files as Express.Multer.File[]) ?? [];
 
-const ticket = await getPrisma().ticket.create({
+  const ticket = await getPrisma().ticket.create({
   data: {
-    ticketNumber,
+    // Temporary unique value because the real ticket number
+    // depends on the auto-generated ticket ID.
+    ticketNumber: `TEMP-${Date.now()}-${Math.random()}`,
     requesterId,
     categoryId: parsedCategoryId,
     relatedSystemId: parsedRelatedSystemId,
@@ -327,7 +306,26 @@ const ticket = await getPrisma().ticket.create({
   },
 });
 
-    return res.status(201).json(ticket);
+const year = new Date().getFullYear();
+
+const ticketNumber = `TKT-${year}-${ticket.id
+  .toString()
+  .padStart(6, "0")}`;
+
+const updatedTicket = await getPrisma().ticket.update({
+  where: {
+    id: ticket.id,
+  },
+  data: {
+    ticketNumber,
+  },
+  include: {
+    attachments: true,
+  },
+});
+
+return res.status(201).json(updatedTicket);
+
   } catch (error) {
     console.error(error);
 
@@ -637,15 +635,15 @@ app.get("/api/tickets/:id", async (req: Request, res: Response) => {
           },
         },
         attachments: {
-          where: {
-            isRemoved: false,
-          },
           select: {
             id: true,
             fileName: true,
             fileSize: true,
             mimeType: true,
             createdAt: true,
+            isRemoved: true,
+            removedAt: true,
+            removedReason: true,
           },
           orderBy: {
             createdAt: "asc",
@@ -937,6 +935,59 @@ app.delete(
         message: "Unable to remove attachment",
       });
     }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Global error handler — must be registered last.
+// Catches Multer errors (invalid file type from fileFilter, oversized file,
+// too many files) and any other error that reaches next(err) without being
+// handled by a route's own try/catch, and returns a clean JSON response
+// instead of falling through to Express's default HTML error page.
+// ---------------------------------------------------------------------------
+app.use(
+  (
+    err: unknown,
+    _req: Request,
+    res: Response,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _next: express.NextFunction
+  ) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({
+          statusCode: 400,
+          message: "Each attachment must be 5 MB or smaller",
+        });
+      }
+
+      if (err.code === "LIMIT_FILE_COUNT") {
+        return res.status(400).json({
+          statusCode: 400,
+          message: "A ticket cannot have more than 5 attachments",
+        });
+      }
+
+      return res.status(400).json({
+        statusCode: 400,
+        message: err.message,
+      });
+    }
+
+    if (err instanceof Error) {
+      // Thrown by the multer fileFilter for disallowed file types.
+      return res.status(400).json({
+        statusCode: 400,
+        message: err.message,
+      });
+    }
+
+    console.error(err);
+
+    return res.status(500).json({
+      statusCode: 500,
+      message: "Unexpected server error",
+    });
   }
 );
 
