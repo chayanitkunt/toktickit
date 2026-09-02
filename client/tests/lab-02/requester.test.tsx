@@ -39,12 +39,12 @@ describe("RequesterSelector", () => {
     );
 
     expect(
-      screen.getByText("Loading requesters…")
+      screen.getByText("Loading development requesters…")
     ).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByText("Alice Johnson (alice@example.com)")).toBeInTheDocument();
-      expect(screen.getByText("Bob Smith (bob@example.com)")).toBeInTheDocument();
+      expect(screen.getByText("Alice Johnson")).toBeInTheDocument();
+      expect(screen.getByText("Bob Smith")).toBeInTheDocument();
     });
   });
 
@@ -58,18 +58,15 @@ describe("RequesterSelector", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Development Requester")).toBeInTheDocument();
+      expect(
+        screen.getByLabelText("Development Requester")
+      ).toBeInTheDocument();
     });
 
     const select = screen.getByLabelText("Development Requester");
 
     await user.selectOptions(select, "2");
 
-    expect(
-      screen.getByText((_, element) =>
-        element?.textContent?.replace(/\s+/g, " ").trim() ===
-         "Current requester: Bob Smith"
-        )
-    ).toBeInTheDocument();
+    expect(select).toHaveValue("2");
   });
 });

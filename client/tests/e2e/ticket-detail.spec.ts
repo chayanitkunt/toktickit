@@ -2,7 +2,7 @@ import { test, expect, type Page, type APIRequestContext } from "@playwright/tes
 
 const API_URL = "http://localhost:3000";
 
-async function selectRequester(page: Page, label: string, name: string) {
+async function selectRequester(page: Page, label: string) {
   await page.goto("/");
 
   const requesterSelect = page.locator("#requester-select");
@@ -11,18 +11,19 @@ async function selectRequester(page: Page, label: string, name: string) {
 
   await requesterSelect.selectOption({ label });
 
-  await expect(
-    page.getByText(`Current requester: ${name}`, { exact: true })
-  ).toBeVisible();
+  await page.getByRole("button", { name: /Continue/i }).click();
 }
 
 async function createTicket(
   page: Page,
   summary: string,
   category = "Hardware",
+  system = "Campus Wi-Fi",
   priority = "MEDIUM"
 ) {
-  await page.getByRole("button", { name: "+ Create Ticket" }).click();
+  await page.getByRole("main").getByRole("button", {
+    name: "+ Create Ticket",
+  }).first().click();
 
   await expect(
     page.getByRole("heading", { name: "Create Ticket" })
@@ -30,10 +31,9 @@ async function createTicket(
 
   const selects = page.locator("select");
 
-  // 0 = Development Requester, 1 = Category, 2 = Related System, 3 = Priority
-  await selects.nth(1).selectOption({ label: category });
-  await selects.nth(2).selectOption({ label: "Corporate Laptop" });
-  await selects.nth(3).selectOption(priority);
+  await selects.nth(0).selectOption({ label: category });
+  await selects.nth(1).selectOption({ label: system });
+  await selects.nth(2).selectOption(priority);
 
   await page.locator('input[type="text"]').fill(summary);
 
@@ -41,13 +41,20 @@ async function createTicket(
     .locator("textarea")
     .fill(`This ticket is created by Playwright for ${summary}.`);
 
-  await page.getByRole("button", { name: "Create Ticket" }).click();
+  await page.getByRole("button", {
+    name: "Create Ticket",
+    exact: true,
+  }).click();
 
   await expect(
-    page.getByRole("heading", { name: "Create Ticket" })
-  ).not.toBeVisible();
+    page.getByRole("heading", { name: "Ticket Created" })
+  ).toBeVisible();
 
-  await expect(page.getByText("My Tickets", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Go to My Tickets" }).click();
+
+  await expect(
+    page.getByRole("heading", { name: "My Tickets", exact: true })
+  ).toBeVisible();
 }
 
 async function openTicketBySummary(page: Page, summary: string) {
@@ -87,15 +94,17 @@ test.describe("Requester Ticket Detail — view mode", () => {
   test("opens a ticket from My Tickets and shows read-only ticket information", async ({
     page,
   }) => {
-    await selectRequester(
-      page,
-      "Alice Johnson (alice@example.com)",
-      "Alice Johnson"
-    );
+    await selectRequester(page, "Alice Johnson");
 
     const summary = `E2E Ticket Detail View ${Date.now()}`;
 
-    await createTicket(page, summary, "Hardware", "HIGH");
+    await createTicket(
+      page,
+      summary,
+      "Hardware",
+      "Corporate Laptop",
+      "HIGH"
+    );
     await openTicketBySummary(page, summary);
 
     await expect(
@@ -110,30 +119,34 @@ test.describe("Requester Ticket Detail — view mode", () => {
     await expect(page.getByText("Hardware")).toBeVisible();
     await expect(page.getByText("HIGH")).toBeVisible();
     await expect(page.getByText("Corporate Laptop")).toBeVisible();
-    await expect(page.getByText("NEW")).toBeVisible();
+    await expect(page.getByText("Open", { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "← Back to My Tickets" }).click();
 
-    await expect(page.getByText("My Tickets", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "My Tickets", exact: true })
+    ).toBeVisible();
   });
 });
 
 test.describe("Requester Ticket Detail — attachments", () => {
   test("can download an active attachment", async ({ page }) => {
-    await selectRequester(
-      page,
-      "Alice Johnson (alice@example.com)",
-      "Alice Johnson"
-    );
+    await selectRequester(page, "Alice Johnson");
 
-    // Uses the deterministic seeded ticket (TKT-2026-000001) which always
-    // has exactly one active attachment, so this test does not depend on
-    // any ticket created earlier in the run.
-    await openTicketBySummary(page, "TKT-2026-000001");
+    const summary = `E2E Download Attachment ${Date.now()}`;
+    await createTicket(page, summary, "Software", "Corporate Laptop", "LOW");
+    await openTicketBySummary(page, summary);
 
-    await expect(
-      page.getByText("seed-test-attachment", { exact: false })
-    ).toBeVisible();
+    const fileInput = page.locator('input[type="file"]');
+    await fileInput.setInputFiles({
+      name: "download-test.png",
+      mimeType: "image/png",
+      buffer: Buffer.from("e2e download attachment test content"),
+    });
+
+    await page.getByRole("button", { name: "Add Attachments" }).click();
+
+    await expect(page.getByText("download-test.png")).toBeVisible();
 
     const downloadPromise = page.waitForEvent("download");
 
@@ -144,22 +157,28 @@ test.describe("Requester Ticket Detail — attachments", () => {
 
     const download = await downloadPromise;
 
-    expect(download.suggestedFilename()).toContain("seed-test-attachment");
+    expect(download.suggestedFilename()).toContain("download-test.png");
   });
 
   test("can add an attachment and then soft-remove it with a reason", async ({
     page,
   }) => {
-    await selectRequester(
-      page,
-      "Alice Johnson (alice@example.com)",
-      "Alice Johnson"
-    );
+    await selectRequester(page, "Alice Johnson");
 
     const summary = `E2E Attachment Lifecycle ${Date.now()}`;
 
-    await createTicket(page, summary, "Software", "LOW");
+    await createTicket(
+      page,
+      summary,
+      "Software",
+      "Corporate Laptop",
+      "LOW"
+    );
     await openTicketBySummary(page, summary);
+
+    await expect(
+      page.getByText("Loading...", { exact: true })
+    ).toBeHidden();
 
     await expect(page.getByText("Attachments (0)")).toBeVisible();
     await expect(page.getByText("No active attachments.")).toBeVisible();
@@ -182,7 +201,6 @@ test.describe("Requester Ticket Detail — attachments", () => {
 
     await expect(attachmentRow).toBeVisible();
 
-    // The app asks for a removal reason via window.prompt().
     page.once("dialog", async (dialog) => {
       expect(dialog.type()).toBe("prompt");
       await dialog.accept("No longer needed for this ticket");
@@ -190,9 +208,6 @@ test.describe("Requester Ticket Detail — attachments", () => {
 
     await attachmentRow.getByRole("button", { name: "Remove" }).click();
 
-    // A soft-removed attachment must disappear from the active list and
-    // must not be downloadable — the API filters isRemoved attachments out
-    // of GET /api/tickets/:id, so the active count returns to zero.
     await expect(page.getByText("Attachments (0)")).toBeVisible();
     await expect(
       page.locator(".list-group-item").filter({ hasText: "lifecycle-test.png" })
@@ -230,15 +245,17 @@ test.describe("Requester Ticket Detail — ownership protection", () => {
   test("one requester's ticket never appears in another requester's My Tickets list", async ({
     page,
   }) => {
-    await selectRequester(
-      page,
-      "Alice Johnson (alice@example.com)",
-      "Alice Johnson"
-    );
+    await selectRequester(page, "Alice Johnson");
 
     const summary = `E2E Ownership Isolation ${Date.now()}`;
 
-    await createTicket(page, summary, "Network", "MEDIUM");
+    await createTicket(
+      page,
+      summary,
+      "Network",
+      "Corporate Laptop",
+      "MEDIUM"
+    );
 
     const searchInput = page.getByPlaceholder(
       "Search by ticket number or summary..."
@@ -250,19 +267,13 @@ test.describe("Requester Ticket Detail — ownership protection", () => {
       page.locator("tbody tr").filter({ hasText: summary })
     ).toHaveCount(1);
 
-    // Switch to a different requester and confirm the ticket is invisible.
-    await selectRequester(
-      page,
-      "Bob Smith (bob@example.com)",
-      "Bob Smith"
-    );
+    await selectRequester(page, "Bob Smith");
 
     const bobSearchInput = page.getByPlaceholder(
       "Search by ticket number or summary..."
     );
 
     await bobSearchInput.fill(summary);
-
 
     await expect(
       page.locator("tbody tr").filter({ hasText: summary })

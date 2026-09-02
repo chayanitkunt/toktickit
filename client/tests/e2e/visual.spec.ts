@@ -3,17 +3,6 @@ import { fileURLToPath } from "url";
 import path from "path";
 import fs from "fs";
 
-// This spec exists purely to capture the desktop/tablet/mobile screenshots
-// required by docs/lab-02/ui-spec.md's visual QA checklist and by Part 9 of
-// the Lab 2 submission. It does not assert business behavior — that is
-// covered by create-ticket.spec.ts, my-tickets.spec.ts, ticket-detail.spec.ts,
-// and requester.spec.ts. Run it across all three Playwright projects:
-//
-//   npx playwright test tests/e2e/visual.spec.ts
-//
-// Screenshots are written to artifacts/lab-02/screenshots/<screen>/, one
-// file per viewport (project name is appended to the filename).
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const screenshotsRoot = path.resolve(
   __dirname,
@@ -34,7 +23,17 @@ function screenshotPath(
   return path.join(dir, `${name}-${projectName}.png`);
 }
 
-async function selectRequester(page: Page, label: string, name: string) {
+async function waitForSpinnerToClear(page: Page) {
+  // Wait out any spinner element or text loading indicator
+  await expect(page.locator(".spinner-border")).toHaveCount(0, {
+    timeout: 10_000,
+  });
+  await expect(page.getByText("Loading ticket form...")).toHaveCount(0, {
+    timeout: 10_000,
+  });
+}
+
+async function selectRequester(page: Page, label: string) {
   await page.goto("/");
 
   const requesterSelect = page.locator("#requester-select");
@@ -42,9 +41,16 @@ async function selectRequester(page: Page, label: string, name: string) {
 
   await requesterSelect.selectOption({ label });
 
-  await expect(
-    page.getByText(`Current requester: ${name}`, { exact: true })
-  ).toBeVisible();
+  const ticketsLoaded = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/tickets") &&
+      response.request().method() === "GET"
+  );
+
+  await page.getByRole("button", { name: /Continue/i }).click();
+
+  await ticketsLoaded;
+  await waitForSpinnerToClear(page);
 }
 
 test.describe("Visual QA screenshots", () => {
@@ -67,13 +73,13 @@ test.describe("Visual QA screenshots", () => {
   });
 
   test("My Tickets screen", async ({ page }, testInfo) => {
-    await selectRequester(
-      page,
-      "Alice Johnson (alice@example.com)",
-      "Alice Johnson"
-    );
+    await selectRequester(page, "Alice Johnson");
 
-    await expect(page.getByText("My Tickets", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "My Tickets", exact: true })
+    ).toBeVisible();
+
+    await waitForSpinnerToClear(page);
 
     await page.screenshot({
       path: screenshotPath("my-tickets", "list", testInfo.project.name),
@@ -84,16 +90,18 @@ test.describe("Visual QA screenshots", () => {
   test("Create Ticket screen — empty and validation-error states", async ({
     page,
   }, testInfo) => {
-    await selectRequester(
-      page,
-      "Alice Johnson (alice@example.com)",
-      "Alice Johnson"
-    );
+    await selectRequester(page, "Alice Johnson");
 
-    await page.getByRole("button", { name: "+ Create Ticket" }).click();
+    await page.getByRole("main").getByRole("button", {
+      name: "+ Create Ticket",
+    }).click();
+
     await expect(
       page.getByRole("heading", { name: "Create Ticket" })
     ).toBeVisible();
+
+    await waitForSpinnerToClear(page);
+    await expect(page.locator("select").first()).toBeVisible();
 
     await page.screenshot({
       path: screenshotPath(
@@ -104,8 +112,11 @@ test.describe("Visual QA screenshots", () => {
       fullPage: true,
     });
 
-    // Trigger validation by submitting without required fields.
-    await page.getByRole("button", { name: "Create Ticket" }).click();
+    await page.getByRole("button", { name: "Create Ticket", exact: true }).click();
+
+    await expect(
+      page.locator(".is-invalid, .invalid-feedback").first()
+    ).toBeVisible();
 
     await page.screenshot({
       path: screenshotPath(
@@ -118,38 +129,32 @@ test.describe("Visual QA screenshots", () => {
   });
 
   test("Requester Ticket Detail screen", async ({ page }, testInfo) => {
-  await selectRequester(
-    page,
-    "Alice Johnson (alice@example.com)",
-    "Alice Johnson"
-  );
+    await selectRequester(page, "Alice Johnson");
 
-  const searchInput = page.getByPlaceholder(
-    "Search by ticket number or summary..."
-  );
+    await waitForSpinnerToClear(page);
 
-  await expect(searchInput).toBeVisible();
-  await searchInput.fill("TKT-2026-000001");
+    // กรอกค้นหา Ticket ID เพื่อดึงตั๋วใบนี้มาแสดงในหน้าปัจจุบันเสมอ ไม่ว่าจะอยู่หน้าไหน
+    await page
+      .getByPlaceholder("Search by ticket number or summary...")
+      .fill("TKT-2026-000001");
 
-  // Desktop/tablet use table rows, while mobile uses card layout.
-  const ticket = page.getByText("TKT-2026-000001", { exact: true });
+    const ticket = page
+      .getByText("TKT-2026-000001", { exact: true })
+      .filter({ visible: true })
+      .first();
 
-  await expect(ticket).toBeVisible();
+    await expect(ticket).toBeVisible();
+    await ticket.click();
 
-  // Click the ticket number/link regardless of desktop or mobile layout.
-  await ticket.click();
+    await expect(
+      page.getByRole("heading", { name: /TKT-2026-000001/ })
+    ).toBeVisible({ timeout: 10_000 });
 
-  await expect(
-    page.getByRole("heading", { name: /^TKT-\d{4}-\d{6}$/ })
-  ).toBeVisible();
+    await waitForSpinnerToClear(page);
 
-  await expect(
-    page.getByText("Loading...", { exact: true })
-  ).toBeHidden();
-
-  await page.screenshot({
-    path: screenshotPath("ticket-detail", "view", testInfo.project.name),
-    fullPage: true,
+    await page.screenshot({
+      path: screenshotPath("ticket-detail", "view", testInfo.project.name),
+      fullPage: true,
+    });
   });
-});
 });

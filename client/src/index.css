@@ -1,0 +1,62 @@
+/*
+ * Responsive ticket table.
+ *
+ * Below the Zen Green "md" breakpoint (768px) the table transforms into a
+ * stacked card-like layout using CSS only (display:block on the table
+ * elements + a data-label pseudo-element). This intentionally keeps a
+ * single set of <tbody><tr> elements in the DOM at every viewport size
+ * instead of rendering a separate desktop table and mobile card list side
+ * by side. Two DOM representations of the same ticket data caused
+ * duplicate/hidden-element ambiguity for automated tests (and assistive
+ * technology) — this pattern avoids that entirely while still meeting the
+ * "different desktop/tablet vs mobile representation" responsive
+ * requirement.
+ */
+@media (max-width: 767.98px) {
+  .responsive-ticket-table table {
+    min-width: 0 !important;
+  }
+
+  .responsive-ticket-table thead {
+    display: none;
+  }
+
+  .responsive-ticket-table tbody,
+  .responsive-ticket-table tr,
+  .responsive-ticket-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .responsive-ticket-table tr {
+    border: 1px solid #e0e6e2;
+    border-radius: 10px;
+    margin-bottom: 0.75rem;
+    padding: 0.75rem;
+  }
+
+  .responsive-ticket-table tr:hover {
+    background-color: transparent !important;
+  }
+
+  .responsive-ticket-table td {
+    border: none !important;
+    padding: 0.3rem 0 !important;
+    white-space: normal !important;
+  }
+
+  .responsive-ticket-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: #5a6e65;
+    margin-bottom: 0.15rem;
+  }
+
+  .responsive-ticket-table td[data-hide-label]::before {
+    content: none;
+  }
+}

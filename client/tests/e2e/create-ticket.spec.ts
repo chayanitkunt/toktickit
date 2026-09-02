@@ -1,26 +1,35 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, Page } from '@playwright/test';
+
+async function selectAliceRequester(page: Page) {
+  await page.goto("/");
+
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+
+  const requesterSelect = page.locator("#requester-select");
+  await expect(requesterSelect).toBeVisible();
+
+  await expect(requesterSelect.locator("option")).toContainText([
+    "Alice Johnson",
+  ]);
+
+  await requesterSelect.selectOption({
+    label: "Alice Johnson",
+  });
+
+  await page.getByRole("button", { name: /Continue/i }).click();
+
+  await expect(
+    page.getByRole("heading", { name: "My Tickets" })
+  ).toBeVisible();
+}
 
 test.describe("Create Ticket", () => {
   test("can create a new ticket", async ({ page }) => {
-    await page.goto("/");
-
-    // Select requester
-    const requesterSelect = page.locator("#requester-select");
-
-    await expect(requesterSelect).toBeVisible();
-
-    await requesterSelect.selectOption({
-      label: "Alice Johnson (alice@example.com)",
-    });
-
-    await expect(
-      page.getByText("Current requester: Alice Johnson", {
-        exact: true,
-      })
-    ).toBeVisible();
+    await selectAliceRequester(page);
 
     // Open Create Ticket
-    await page.getByRole("button", {
+    await page.getByRole("main").getByRole("button", {
       name: "+ Create Ticket",
     }).click();
 
@@ -30,22 +39,21 @@ test.describe("Create Ticket", () => {
 
     const selects = page.locator("select");
 
-    await expect(selects).toHaveCount(4);
+    await expect(selects).toHaveCount(3);
 
-    // 0 = Development Requester
-    // 1 = Category
-    // 2 = Related System
-    // 3 = Requested Priority
+    // 0 = Category
+    // 1 = Related System
+    // 2 = Requested Priority
 
-    await selects.nth(1).selectOption({
+    await selects.nth(0).selectOption({
       label: "Hardware",
     });
 
-    await selects.nth(2).selectOption({
+    await selects.nth(1).selectOption({
       label: "Corporate Laptop",
     });
 
-    await selects.nth(3).selectOption("HIGH");
+    await selects.nth(2).selectOption("HIGH");
 
     // Summary
     await page.locator('input[type="text"]').fill(
@@ -60,33 +68,31 @@ test.describe("Create Ticket", () => {
     // Submit
     await page.getByRole("button", {
       name: "Create Ticket",
+      exact: true,
     }).click();
 
-    // After successful creation, Create Ticket should disappear
+    // Success state should show the backend-generated Ticket Number
     await expect(
-      page.getByRole("heading", { name: "Create Ticket" })
-    ).not.toBeVisible();
+      page.getByRole("heading", { name: "Ticket Created" })
+    ).toBeVisible();
+
+    await expect(page.getByText(/TKT-\d{4}-\d{6}/)).toBeVisible();
+
+    await page
+      .getByRole("button", { name: "Go to My Tickets" })
+      .click();
 
     // My Tickets should be visible again
     await expect(
-      page.getByText("My Tickets", { exact: true })
+      page.getByRole("heading", { name: "My Tickets" })
     ).toBeVisible();
   });
 
-    test("validates ticket attachments", async ({ page }) => {
-    await page.goto("/");
-
-    // Select requester
-    const requesterSelect = page.locator("#requester-select");
-
-    await expect(requesterSelect).toBeVisible();
-
-    await requesterSelect.selectOption({
-      label: "Alice Johnson (alice@example.com)",
-    });
+  test("validates ticket attachments", async ({ page }) => {
+    await selectAliceRequester(page);
 
     // Open Create Ticket
-    await page.getByRole("button", {
+    await page.getByRole("main").getByRole("button", {
       name: "+ Create Ticket",
     }).click();
 
@@ -94,16 +100,17 @@ test.describe("Create Ticket", () => {
       page.getByRole("heading", { name: "Create Ticket" })
     ).toBeVisible();
 
-    // Fill required ticket fields
     const selects = page.locator("select");
 
-    await selects.nth(1).selectOption({
+    await selects.nth(0).selectOption({
       label: "Hardware",
     });
 
-    await selects.nth(2).selectOption({
+    await selects.nth(1).selectOption({
       label: "Corporate Laptop",
     });
+
+    await selects.nth(2).selectOption("HIGH");
 
     await page.locator('input[type="text"]').fill(
       "Attachment validation test"
@@ -124,10 +131,10 @@ test.describe("Create Ticket", () => {
 
     // Verify the file input accepted the attachment
     const fileName = await fileInput.evaluate(
-      (input) => (input as HTMLInputElement).files?.[0]?.name
+      (input) =>
+        (input as HTMLInputElement).files?.[0]?.name
     );
 
     expect(fileName).toBe("test-attachment.png");
-      });
-  
+  });
 });

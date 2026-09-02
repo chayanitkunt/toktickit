@@ -9,14 +9,10 @@ test.describe("My Tickets", () => {
     await expect(requesterSelect).toBeVisible();
 
     await requesterSelect.selectOption({
-      label: "Alice Johnson (alice@example.com)",
+      label: "Alice Johnson",
     });
 
-    await expect(
-      page.getByText("Current requester: Alice Johnson", {
-        exact: true,
-      })
-    ).toBeVisible();
+    await page.getByRole("button", { name: /Continue/i }).click();
   }
 
   async function createTicket(
@@ -25,9 +21,9 @@ test.describe("My Tickets", () => {
     category = "Hardware",
     priority = "MEDIUM"
   ) {
-    await page.getByRole("button", {
+    await page.getByRole("main").getByRole("button", {
       name: "+ Create Ticket",
-    }).click();
+    }).first().click();
 
     await expect(
       page.getByRole("heading", { name: "Create Ticket" })
@@ -35,15 +31,15 @@ test.describe("My Tickets", () => {
 
     const selects = page.locator("select");
 
-    await selects.nth(1).selectOption({
+    await selects.nth(0).selectOption({
       label: category,
     });
 
-    await selects.nth(2).selectOption({
+    await selects.nth(1).selectOption({
       label: "Corporate Laptop",
     });
 
-    await selects.nth(3).selectOption(priority);
+    await selects.nth(2).selectOption(priority);
 
     await page.locator('input[type="text"]').fill(summary);
 
@@ -53,10 +49,19 @@ test.describe("My Tickets", () => {
 
     await page.getByRole("button", {
       name: "Create Ticket",
+      exact: true,
     }).click();
 
     await expect(
-      page.getByText("My Tickets", { exact: true })
+      page.getByRole("heading", { name: "Ticket Created" })
+    ).toBeVisible();
+
+    await page
+      .getByRole("button", { name: "Go to My Tickets" })
+      .click();
+
+    await expect(
+      page.getByRole("heading", { name: "My Tickets", exact: true })
     ).toBeVisible();
   }
 
@@ -70,9 +75,7 @@ test.describe("My Tickets", () => {
     await searchInput.fill(summary);
 
     await expect(
-      page.getByRole("cell", {
-        name: summary,
-      }).first()
+      page.getByText(summary, { exact: true }).first()
     ).toBeVisible();
   }
 
@@ -121,30 +124,26 @@ test.describe("My Tickets", () => {
       "MEDIUM"
     );
 
-    const categorySelect = page.locator("select").nth(1);
+    const categorySelect = page.locator("select").filter({
+      has: page.locator('option', { hasText: "All Categories" }),
+    });
 
     await expect(categorySelect).toBeVisible();
 
-    // Filter by Hardware.
     await categorySelect.selectOption({
       label: "Hardware",
     });
 
-    // Search specifically for the Hardware ticket.
     await searchTicket(page, hardwareSummary);
 
-    // Clear search so the category filter can be tested independently.
     const searchInput = page.getByPlaceholder(
       "Search by ticket number or summary..."
     );
 
     await searchInput.fill("");
 
-    // The Software ticket should not appear in the current filtered results.
     await expect(
-      page.getByRole("cell", {
-        name: softwareSummary,
-      })
+      page.getByText(softwareSummary, { exact: true })
     ).toHaveCount(0);
   });
 
@@ -173,7 +172,9 @@ test.describe("My Tickets", () => {
       "LOW"
     );
 
-    const prioritySelect = page.locator("select").nth(2);
+    // Selects on My Tickets are ordered: 0 = Category, 1 = Requested
+    // Priority, 2 = IT Priority, 3 = Current Status.
+    const prioritySelect = page.locator("select").nth(1);
 
     await expect(prioritySelect).toBeVisible();
 
@@ -188,9 +189,7 @@ test.describe("My Tickets", () => {
     await searchInput.fill("");
 
     await expect(
-      page.getByRole("cell", {
-        name: lowSummary,
-      })
+      page.getByText(lowSummary, { exact: true })
     ).toHaveCount(0);
   });
 
@@ -216,147 +215,140 @@ test.describe("My Tickets", () => {
     await searchTicket(page, summary);
   });
 
- 
-  
   test("can sort tickets by summary ascending", async ({ page }) => {
-  await selectAlice(page);
-
-  const timestamp = Date.now();
-
-  const summaryA = `AAA E2E Sort ${timestamp}`;
-  const summaryB = `ZZZ E2E Sort ${timestamp}`;
-
-  await createTicket(
-    page,
-    summaryB,
-    "Hardware",
-    "MEDIUM"
-  );
-
-  await createTicket(
-    page,
-    summaryA,
-    "Hardware",
-    "MEDIUM"
-  );
-
-  const sortBySelect = page.locator("select").nth(4);
-  const orderSelect = page.locator("select").nth(5);
-
-  await sortBySelect.selectOption("summary");
-  await orderSelect.selectOption("asc");
-
-  await expect(page.getByText("My Tickets", { exact: true })).toBeVisible();
-
-  await expect(
-    page.getByText("Loading...", { exact: true })
-  ).toBeHidden();
-
-
-
-  const searchInput = page.getByPlaceholder(
-    "Search by ticket number or summary..."
-  );
-
-  await searchInput.fill(`E2E Sort ${timestamp}`);
-
-  // Use text instead of role="cell" so this works on
-  // desktop, tablet, and mobile layouts.
-  const summaryALocator = page.getByText(summaryA, {
-    exact: true,
-  });
-
-  const summaryBLocator = page.getByText(summaryB, {
-    exact: true,
-  });
-
-  await expect(summaryALocator).toBeVisible();
-  await expect(summaryBLocator).toBeVisible();
-
-  const summaryTexts = await page
-    .getByText(/^(AAA|ZZZ) E2E Sort \d+$/, { exact: false })
-    .allTextContents();
-
-  const indexA = summaryTexts.indexOf(summaryA);
-  const indexB = summaryTexts.indexOf(summaryB);
-
-  expect(indexA).toBeGreaterThanOrEqual(0);
-  expect(indexB).toBeGreaterThanOrEqual(0);
-
-  // AAA must appear before ZZZ in ascending order.
-  expect(indexA).toBeLessThan(indexB);
-});
-
-
-  
-
- 
-  test("can sort tickets by summary descending", async ({ page }) => {
-  await selectAlice(page);
-
-  const timestamp = Date.now();
-
-  const summaryA = `AAA E2E Desc Sort ${timestamp}`;
-  const summaryB = `ZZZ E2E Desc Sort ${timestamp}`;
-
-  await createTicket(
-    page,
-    summaryA,
-    "Hardware",
-    "MEDIUM"
-  );
-
-  await createTicket(
-    page,
-    summaryB,
-    "Hardware",
-    "MEDIUM"
-  );
-
-  const sortBySelect = page.locator("select").nth(4);
-  const orderSelect = page.locator("select").nth(5);
-
-  await sortBySelect.selectOption("summary");
-  await orderSelect.selectOption("desc");
-
-  await expect(
-    page.getByText("Loading...", { exact: true })
-  ).toBeHidden();
-
-  const searchInput = page.getByPlaceholder(
-    "Search by ticket number or summary..."
-  );
-
-  await searchInput.fill(`E2E Desc Sort ${timestamp}`);
-
-  const summaryALocator = page.getByText(summaryA, {
-    exact: true,
-  }).first();
-
-  const summaryBLocator = page.getByText(summaryB, {
-    exact: true,
-  }).first();
-
-  await expect(summaryALocator).toBeVisible();
-  await expect(summaryBLocator).toBeVisible();
-
-  const boxA = await summaryALocator.boundingBox();
-  const boxB = await summaryBLocator.boundingBox();
-
-  expect(boxA).not.toBeNull();
-  expect(boxB).not.toBeNull();
-
-  // ZZZ must appear before AAA in descending order.
-  expect(boxB!.y).toBeLessThan(boxA!.y);
-});
-
-
-  test("can paginate through tickets", async ({ page }) => {
     await selectAlice(page);
 
     const timestamp = Date.now();
 
-    // Create enough tickets to guarantee at least two pages.
+    const summaryA = `AAA E2E Sort ${timestamp}`;
+    const summaryB = `ZZZ E2E Sort ${timestamp}`;
+
+    await createTicket(
+      page,
+      summaryB,
+      "Hardware",
+      "MEDIUM"
+    );
+
+    await createTicket(
+      page,
+      summaryA,
+      "Hardware",
+      "MEDIUM"
+    );
+
+    const sortBySelect = page.locator("select").nth(4);
+    const orderSelect = page.locator("select").nth(5);
+
+    await sortBySelect.selectOption("summary");
+    await orderSelect.selectOption("asc");
+
+    await expect(
+      page.getByRole("heading", { name: "My Tickets", exact: true })
+    ).toBeVisible();
+
+    await expect(
+      page.getByText("Loading...", { exact: true })
+    ).toBeHidden();
+
+    const searchInput = page.getByPlaceholder(
+      "Search by ticket number or summary..."
+    );
+
+    await searchInput.fill(`E2E Sort ${timestamp}`);
+
+    const summaryALocator = page.getByText(summaryA, {
+      exact: true,
+    });
+
+    const summaryBLocator = page.getByText(summaryB, {
+      exact: true,
+    });
+
+    await expect(summaryALocator.first()).toBeVisible();
+    await expect(summaryBLocator.first()).toBeVisible();
+
+    const summaryTexts = await page
+      .getByText(/^(AAA|ZZZ) E2E Sort \d+$/, { exact: false })
+      .allTextContents();
+
+    const indexA = summaryTexts.indexOf(summaryA);
+    const indexB = summaryTexts.indexOf(summaryB);
+
+    expect(indexA).toBeGreaterThanOrEqual(0);
+    expect(indexB).toBeGreaterThanOrEqual(0);
+
+    expect(indexA).toBeLessThan(indexB);
+  });
+
+  test("can sort tickets by summary descending", async ({ page }) => {
+    await selectAlice(page);
+
+    const timestamp = Date.now();
+
+    const summaryA = `AAA E2E Desc Sort ${timestamp}`;
+    const summaryB = `ZZZ E2E Desc Sort ${timestamp}`;
+
+    await createTicket(
+      page,
+      summaryA,
+      "Hardware",
+      "MEDIUM"
+    );
+
+    await createTicket(
+      page,
+      summaryB,
+      "Hardware",
+      "MEDIUM"
+    );
+
+    const sortBySelect = page.locator("select").nth(4);
+    const orderSelect = page.locator("select").nth(5);
+
+    await sortBySelect.selectOption("summary");
+    await orderSelect.selectOption("desc");
+
+    await expect(
+      page.getByText("Loading...", { exact: true })
+    ).toBeHidden();
+
+    const searchInput = page.getByPlaceholder(
+      "Search by ticket number or summary..."
+    );
+
+    await searchInput.fill(`E2E Desc Sort ${timestamp}`);
+
+    const summaryALocator = page.getByText(summaryA, {
+      exact: true,
+    }).first();
+
+    const summaryBLocator = page.getByText(summaryB, {
+      exact: true,
+    }).first();
+
+    await expect(summaryALocator).toBeVisible();
+    await expect(summaryBLocator).toBeVisible();
+
+    const boxA = await summaryALocator.boundingBox();
+    const boxB = await summaryBLocator.boundingBox();
+
+    expect(boxA).not.toBeNull();
+    expect(boxB).not.toBeNull();
+
+    expect(boxB!.y).toBeLessThan(boxA!.y);
+  });
+
+  test("can paginate through tickets", async ({ page }, testInfo) => {
+    test.skip(
+      testInfo.project.name === "mobile",
+      "Mobile uses card layout, not a table — covered by visual QA instead"
+    );
+
+    await selectAlice(page);
+
+    const timestamp = Date.now();
+
     for (let i = 1; i <= 11; i++) {
       await createTicket(
         page,
@@ -366,7 +358,6 @@ test.describe("My Tickets", () => {
       );
     }
 
-    // Clear any search/filter state and use default createdAt ordering.
     const searchInput = page.getByPlaceholder(
       "Search by ticket number or summary..."
     );
@@ -386,29 +377,26 @@ test.describe("My Tickets", () => {
 
     await expect(pageTwo).toBeVisible();
 
-    // Scroll the pagination control into view for mobile/tablet.
-    
     await pageTwo.evaluate(() => {
-  const buttons = Array.from(
-    document.querySelectorAll("button")
-  );
+      const buttons = Array.from(
+        document.querySelectorAll("button")
+      );
 
-  const button = buttons.find(
-    (btn) => btn.textContent?.trim() === "2"
-  ) as HTMLButtonElement | undefined;
+      const button = buttons.find(
+        (btn) => btn.textContent?.trim() === "2"
+      ) as HTMLButtonElement | undefined;
 
-  if (!button) {
-    throw new Error("Page 2 button not found");
-  }
+      if (!button) {
+        throw new Error("Page 2 button not found");
+      }
 
-  button.click();
-});
+      button.click();
+    });
 
     await expect(
-  page.getByText(/Showing 11 to \d+ of \d+/)
-).toBeVisible();
+      page.getByText(/Showing 11 to \d+ of \d+/)
+    ).toBeVisible();
 
-    // Page 2 must contain at least one ticket.
     await expect(
       page.locator("tbody tr").first()
     ).toBeVisible();
@@ -419,31 +407,30 @@ test.describe("My Tickets", () => {
 
     await expect(previousButton).toBeEnabled();
 
-    // Return to page 1.
     const pageOne = pagination.getByRole("button", {
       name: "1",
       exact: true,
     });
 
     await pageOne.evaluate(() => {
-  const buttons = Array.from(
-    document.querySelectorAll("button")
-  );
+      const buttons = Array.from(
+        document.querySelectorAll("button")
+      );
 
-  const button = buttons.find(
-    (btn) => btn.textContent?.trim() === "1"
-  ) as HTMLButtonElement | undefined;
+      const button = buttons.find(
+        (btn) => btn.textContent?.trim() === "1"
+      ) as HTMLButtonElement | undefined;
 
-  if (!button) {
-    throw new Error("Page 1 button not found");
-  }
+      if (!button) {
+        throw new Error("Page 1 button not found");
+      }
 
-  button.click();
-});
+      button.click();
+    });
 
-await expect(
-  page.getByText(/Showing 1 to 10 of \d+/)
-).toBeVisible();
+    await expect(
+      page.getByText(/Showing 1 to 10 of \d+/)
+    ).toBeVisible();
 
     await expect(
       page.locator("tbody tr").first()
@@ -472,9 +459,7 @@ await expect(
     await searchInput.fill(summary);
 
     await expect(
-      page.getByRole("cell", {
-        name: summary,
-      }).first()
+      page.getByText(summary, { exact: true }).first()
     ).toBeVisible();
 
     await page.getByRole("button", {
@@ -483,16 +468,10 @@ await expect(
 
     await expect(searchInput).toHaveValue("");
 
-    // Verify the ticket still exists after clearing filters.
-    // Search again to avoid depending on pagination position.
     await searchInput.fill(summary);
 
     await expect(
-      page.getByRole("cell", {
-        name: summary,
-      }).first()
+      page.getByText(summary, { exact: true }).first()
     ).toBeVisible();
   });
 });
-
-

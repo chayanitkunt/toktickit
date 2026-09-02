@@ -8,16 +8,22 @@ test.describe("Development Requester", () => {
 
     await expect(requesterSelect).toBeVisible();
 
+    await expect(
+      requesterSelect.locator("option", {
+        hasText: "Bob Smith",
+      })
+    ).toBeAttached();
+
     await requesterSelect.selectOption({
-      label: "Bob Smith (bob@example.com)",
+      label: "Bob Smith",
     });
 
-    await expect(
-      page.getByText("Current requester:", { exact: false })
-    ).toBeVisible();
+    await expect(requesterSelect).toHaveValue("2");
 
     await expect(
-      page.getByText("Bob Smith", { exact: true })
-    ).toBeVisible();
+      page.getByRole("button", { name: /Continue/i })
+    ).toBeEnabled();
+
+    await page.getByRole("button", { name: /Continue/i }).click();
   });
 });

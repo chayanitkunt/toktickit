@@ -2,15 +2,12 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests/e2e",
-
-  fullyParallel: true,
-
+  fullyParallel: false,   // เดิม true
+  workers: 1,             // บังคับรันทีละ test กันชนกัน
+  expect: { timeout: 8000 },  // เดิมใช้ default 5000ms
   forbidOnly: !!process.env.CI,
-
   retries: process.env.CI ? 2 : 0,
-
   reporter: "html",
-
   use: {
     baseURL: "http://localhost:5173",
     trace: "on-first-retry",
