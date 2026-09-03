@@ -23,15 +23,13 @@
 [
   {
     "id": 1,
-    "name": "Jennifer Anderson",
-    "email": "jennifer.a@example.com",
-    "department": "Finance"
+    "name": "Alice Johnson",
+    "email": "alice@example.com"
   },
   {
     "id": 2,
-    "name": "Michael Brown",
-    "email": "michael.b@example.com",
-    "department": "Marketing"
+    "name": "Bob Smith",
+    "email": "bob@example.com"
   }
 ]
 ```

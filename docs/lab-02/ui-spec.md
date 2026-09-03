@@ -64,10 +64,10 @@
 
 * Breadcrumb: **My Tickets > Ticket Details** with **← Back to My Tickets**.
 * Ticket information is displayed as read-only fields in a responsive grid.
-* Show Ticket No., Ticket Date, Requester, Category, Related System, Summary, Description, Requested Priority, IT Priority, Current Status, and Ticket Owner.
-* Display Resolution Summary as read-only when available; otherwise show *"No resolution summary available yet."*
+* Show Ticket No., Ticket Date, Requester, Category, Related System, Summary, Description, Requested Priority, and Current Status.
+* **IT Priority, Ticket Owner, and Resolution Summary are intentionally not implemented in Lab 2.** They belong to the IT Staff workflow (assignment, triage, and resolution), which is explicitly excluded from this sprint's scope per the labsheet. They will be added when IT Staff functionality is introduced.
 * Attachment section supports adding, downloading, and soft-removing permitted attachments.
-* Removed attachments remain visible as metadata but cannot be downloaded.
+* Removed attachments remain visible in a separate "Removed Attachments" section with a struck-through filename, removal date/reason, and an "Unavailable" badge, and cannot be downloaded.
 * Soft removal requires a confirmation and removal reason.
 * Do not implement comments, internal notes, service actions, event logs, or later ticket workflow in Lab 2.
 

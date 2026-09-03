@@ -4,6 +4,8 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { getPrisma } from "./prisma.js";
+import { formatTicketNumber } from "./ticketNumber.js";
+import { isAllowedAttachmentMimeType } from "./attachmentValidation.js";
 
 
 // getPrisma() is your lazy database handle. Call it INSIDE a route when you
@@ -22,13 +24,6 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-const allowedMimeTypes = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "application/pdf",
-];
-
 const upload = multer({
   dest: uploadDir,
   limits: {
@@ -36,7 +31,7 @@ const upload = multer({
     files: 5,
   },
   fileFilter: (_req, file, cb) => {
-    if (allowedMimeTypes.includes(file.mimetype)) {
+    if (isAllowedAttachmentMimeType(file.mimetype)) {
       cb(null, true);
     } else {
       cb(new Error("Only JPG, JPEG, PNG, WEBP, and PDF files are allowed"));
@@ -306,11 +301,7 @@ app.post(
   },
 });
 
-const year = new Date().getFullYear();
-
-const ticketNumber = `TKT-${year}-${ticket.id
-  .toString()
-  .padStart(6, "0")}`;
+const ticketNumber = formatTicketNumber(ticket.id);
 
 const updatedTicket = await getPrisma().ticket.update({
   where: {
