@@ -198,10 +198,11 @@ export default function CreateTicket({
           <form onSubmit={handleSubmit} noValidate>
             {/* Category */}
             <div className="mb-3">
-              <label className="form-label fw-semibold" style={{ color: "#1A2E26" }}>
+              <label htmlFor="ticket-category" className="form-label fw-semibold" style={{ color: "#1A2E26" }}>
                 Category
               </label>
               <select
+                id="ticket-category"
                 className={`form-select ${fieldErrors.category ? "is-invalid" : ""}`}
                 value={categoryId}
                 onChange={(e) =>
@@ -222,10 +223,11 @@ export default function CreateTicket({
 
             {/* Related System */}
             <div className="mb-3">
-              <label className="form-label fw-semibold" style={{ color: "#1A2E26" }}>
+              <label htmlFor="ticket-related-system" className="form-label fw-semibold" style={{ color: "#1A2E26" }}>
                 Related System
               </label>
               <select
+                id="ticket-related-system"
                 className={`form-select ${fieldErrors.system ? "is-invalid" : ""}`}
                 value={relatedSystemId}
                 onChange={(e) =>
@@ -246,10 +248,11 @@ export default function CreateTicket({
 
             {/* Requested Priority */}
             <div className="mb-3">
-              <label className="form-label fw-semibold" style={{ color: "#1A2E26" }}>
+              <label htmlFor="ticket-priority" className="form-label fw-semibold" style={{ color: "#1A2E26" }}>
                 Requested Priority
               </label>
               <select
+                id="ticket-priority"
                 className="form-select"
                 value={priority}
                 onChange={(e) =>
@@ -264,10 +267,11 @@ export default function CreateTicket({
 
             {/* Summary */}
             <div className="mb-3">
-              <label className="form-label fw-semibold" style={{ color: "#1A2E26" }}>
+              <label htmlFor="ticket-summary" className="form-label fw-semibold" style={{ color: "#1A2E26" }}>
                 Summary
               </label>
               <input
+                id="ticket-summary"
                 type="text"
                 className={`form-control ${fieldErrors.summary ? "is-invalid" : ""}`}
                 value={summary}
@@ -281,10 +285,11 @@ export default function CreateTicket({
 
             {/* Description */}
             <div className="mb-3">
-              <label className="form-label fw-semibold" style={{ color: "#1A2E26" }}>
+              <label htmlFor="ticket-description" className="form-label fw-semibold" style={{ color: "#1A2E26" }}>
                 Description
               </label>
               <textarea
+                id="ticket-description"
                 rows={5}
                 className={`form-control ${fieldErrors.description ? "is-invalid" : ""}`}
                 value={description}
@@ -300,10 +305,11 @@ export default function CreateTicket({
 
             {/* Attachments */}
             <div className="mb-4">
-              <label className="form-label fw-semibold" style={{ color: "#1A2E26" }}>
+              <label htmlFor="ticket-attachments" className="form-label fw-semibold" style={{ color: "#1A2E26" }}>
                 Attachments
               </label>
               <input
+                id="ticket-attachments"
                 type="file"
                 className="form-control"
                 multiple
