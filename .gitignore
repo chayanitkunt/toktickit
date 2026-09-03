@@ -12,3 +12,10 @@ server/prisma/*.db
 # logs & OS
 *.log
 .DS_Store
+# TypeScript compiled JavaScript
+client/**/*.js
+server/uploads/
+
+# Playwright
+client/playwright-report/
+client/test-results/

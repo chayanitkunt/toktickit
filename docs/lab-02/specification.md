@@ -83,7 +83,7 @@ The UI adheres strictly to the **Zen Green Theme** visual language:
 
 ## 7. Data Changes
 ### Prisma Schema Concepts
-* **RequesterUser:** `id`, `name`, `email`, `department`, `isActive`, `createdAt`, `updatedAt`
+* **Requester** (the Prisma model name is `Requester`, referred to as "Development Requester" in the UI): `id`, `name`, `email` (unique), `isActive`, `createdAt`
 * **Category:** `id`, `name`, `code`, `isActive`
 * **RelatedSystem:** `id`, `name`, `code`, `isActive`
 * **Ticket:** `id`, `ticketNumber` (unique), `requesterId` (FK), `categoryId` (FK), `relatedSystemId` (FK), `summary`, `description`, `requestedPriority` (ENUM: LOW, MEDIUM, HIGH), `currentStatus` (ENUM: NEW, IN_PROGRESS, RESOLVED, CLOSED, PENDING; default: NEW), `createdAt`, `updatedAt`
