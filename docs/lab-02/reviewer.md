@@ -4,10 +4,10 @@ This document is evidence for Part 1 (Git Use with Engineering Workflow) of the 
 
 ## 1. Reviewer Identity
 
-| Role | Name | GitHub Username |
+| Role | Name - Student ID | GitHub Username |
 | --- | --- | --- |
-| Author (this repo) | Chayanit Kuntanarumitkul | @chayanitkunt |
-| Peer Reviewer | Kulchaya Paipinij | @chayongchaya |
+| Author (this repo) | Chayanit Kuntanarumitkul - 67070503408 | @chayanitkunt |
+| Peer Reviewer | Kulchaya Paipinij - 67070503406 | @chayongchaya |
 
 ## 2. Pull Requests Reviewed in Lab 2
 
@@ -15,15 +15,17 @@ List every feature-branch PR merged into `lab2-staging`, plus the final `lab2-st
 
 | PR # | Title | Branch → Target | Link | Reviewer(s) | Approval Status |
 | --- | --- | --- | --- | --- | --- |
-| #19 | docs: complete Lab 2 sprint specification | feature/lab2-specification → main | https://github.com/chayanitkunt/toktickit/pull/19 | @chayongchaya | ✅ Approved |
+| #19 | docs: complete Lab 2 sprint specification | feature/lab2-specification → main¹ | https://github.com/chayanitkunt/toktickit/pull/19 | @chayongchaya | ✅ Approved |
 | #20 | feat: add development requester context | feature/6-development-requester-context → lab2-staging | https://github.com/chayanitkunt/toktickit/pull/20 | @chayongchaya | ✅ Approved |
 | #21 | feat: implement Ticket and Attachment data foundation | feature/13-ticket-attachment-foundation → lab2-staging | https://github.com/chayanitkunt/toktickit/pull/21 | @chayongchaya | ✅ Approved |
 | #22 | feat: implement ticket creation with attachments | feature/14-create-ticket → lab2-staging | https://github.com/chayanitkunt/toktickit/pull/22 | @chayongchaya | ✅ Approved |
 | #23 | feat: implement My Tickets requester workflow | feature/15-my-tickets → lab2-staging | https://github.com/chayanitkunt/toktickit/pull/23 | @chayongchaya | ✅ Approved |
 | #24 | feat: complete Lab 2 ticket detail and attachments | feature/16-ticket-detail → lab2-staging | https://github.com/chayanitkunt/toktickit/pull/24 | @chayongchaya | ✅ Approved |
 | #25 | test: add E2E, responsive, and visual QA coverage | feature/17-e2e-responsive-visual-qa → lab2-staging | https://github.com/chayanitkunt/toktickit/pull/25 | @chayongchaya | ✅ Approved |
-| TBD | docs: finalize Lab 2 documentation and release (Issue #18) | feature/18-docs-finalize → lab2-staging | _(open PR, then paste link here)_ | @chayongchaya | ⏳ Pending — not yet opened |
+| #26 | docs: finalize Lab 2 documentation and release (Issue #18) | feature/18-docs-finalize → lab2-staging | https://github.com/chayanitkunt/toktickit/pull/26 | @chayongchaya | ⏳ Review requested — awaiting approval |
 | Release | Release: Lab 2 | lab2-staging → main | _(open PR, then paste link here)_ | @chayongchaya | ⏳ Pending — `main` is still 14 commits behind `lab2-staging`; do not mark Approved until this PR is opened, reviewed, and merged |
+
+¹ **Note on PR #19:** the PR base was accidentally set to `main` instead of `lab2-staging` when it was opened (before `lab2-staging` existed for Lab 2). It was merged directly into `main` as a result. This was an isolated, one-time mistake — `lab2-staging` was created from `main` immediately afterward, so the specification commit is already an ancestor of `lab2-staging` (verified with `git merge-base --is-ancestor main lab2-staging`). There is no divergence, duplication, or conflict, and the upcoming Release PR (`lab2-staging → main`) will merge cleanly. Every subsequent PR (#20–#26) correctly targeted `lab2-staging` per the required branch flow.
 
 ## 3. Comments Given (as Reviewer)
 
@@ -53,6 +55,7 @@ Comments the reviewer (@chayongchaya) left on this author's (@chayanitkunt) PR(s
 | #23 | General | "The 'My Tickets' requester workflow is well put together—handling search, filtering, pagination, and form submissions cleanly. Great work!" | "Thanks for reviewing! Glad the filtering, search, and pagination came out clean." | ✅ |
 | #24 | General | "The Ticket Detail view and attachment management look thoroughly implemented. Test results look solid too." | "Thanks for taking the time to review! Happy to hear the test suite and attachment logic hit the mark." | ✅ |
 | #25 | General | "Excellent test coverage with Playwright across all key user flows, and great attention to detail on responsive layouts and visual QA screenshots. Ready to merge!" | "Thanks for checking out the PR! Really happy to hear the Playwright tests and responsive screenshots passed muster." | ✅ |
+| #26 | General | "The finalized Lab 2 documentation, traceability updates, and automated test results (113 passing) look super thorough and complete. Ready to merge!" | "Appreciate the review! Really glad to hear the documentation, traceability, and test results look solid to you." | ✅ |
 
 ## 5. Final Approvals
 
@@ -65,9 +68,9 @@ Comments the reviewer (@chayongchaya) left on this author's (@chayanitkunt) PR(s
 | #23 | @chayongchaya | 3 days ago | My Tickets requester workflow, search, and pagination approved. |
 | #24 | @chayongchaya | 2 days ago | Ticket Detail view and attachment removal logic approved. |
 | #25 | @chayongchaya | 5 hours ago | Playwright E2E, responsive layouts, and visual QA approved. |
-| TBD | _pending_ | _pending_ | Docs-finalization PR (Issue #18) not yet opened as of this writing — update once opened, reviewed, and merged into `lab2-staging`. |
+| TBD | _pending_ | _pending_ | PR #26 opened and review requested from @chayongchaya — awaiting approval and merge into `lab2-staging`.|
 | Release PR | _pending_ | _pending_ | Not yet opened. Open this PR only after the docs-finalization PR above is merged into `lab2-staging` and the full test suite (server + client + Playwright) is green on that branch. Update this row with the real reviewer, date, and confirmation once `lab2-staging` → `main` is actually merged. |
 
 ## 6. Summary
 
-In Lab 2, a total of 8 PRs on the partner's repo and 7 feature/docs PRs on this repo were reviewed and authored following the specification-driven branch workflow (`feature/*` → `lab2-staging` → `main`). Code reviews verified ticket ownership validation, attachment upload/soft-deletion handling, frontend component test coverage, and Playwright E2E workflows across desktop and mobile devices. All pull requests through #25 passed peer review, satisfied specification requirements, and maintained green test suites. The docs-finalization PR (Issue #18) and the `lab2-staging` → `main` release PR are the two remaining steps before Lab 2 can be considered fully released — see the pending rows above.
+In Lab 2, a total of 8 PRs on the partner's repo and 8 feature/docs PRs on this repo (#19–#26) were reviewed and authored following the specification-driven branch workflow (`feature/*` → `lab2-staging` → `main`). Code reviews verified ticket ownership validation, attachment upload/soft-deletion handling, frontend component test coverage, and Playwright E2E workflows across desktop and mobile devices. All pull requests through #25 passed peer review, satisfied specification requirements, and maintained green test suites. The docs-finalization PR (Issue #18) and the `lab2-staging` → `main` release PR are the two remaining steps before Lab 2 can be considered fully released — see the pending rows above.
