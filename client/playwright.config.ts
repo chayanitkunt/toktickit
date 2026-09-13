@@ -38,9 +38,22 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
-    command: "npm run dev -- --host 0.0.0.0",
-    url: "http://localhost:5173",
-    reuseExistingServer: !process.env.CI,
-  },
+  // Both the client dev server AND the backend API must be running for the
+  // e2e specs to work — Login/Logout/Change Password all make real
+  // POST /api/auth/... calls to http://localhost:3000. Playwright starts
+  // (or reuses) both automatically so `npx playwright test` is self-contained.
+  webServer: [
+    {
+      command: "npm run dev -- --host 0.0.0.0",
+      url: "http://localhost:5173",
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      command: "npm run dev",
+      cwd: "../server",
+      url: "http://localhost:3000/api/health",
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+    },
+  ],
 });

@@ -1,6 +1,114 @@
 const API_URL =
   import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
+// ---------------------------------------------------------
+// Issue 3 — Authentication
+// ---------------------------------------------------------
+
+export type UserRole = "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR";
+
+export interface CurrentUser {
+  id: number;
+  name: string;
+  email: string;
+  role: UserRole;
+  mustChangePassword: boolean;
+}
+
+export interface ApiErrorBody {
+  error?: string;
+  code?: string;
+  details?: string[];
+}
+
+async function readJsonSafely(
+  response: Response
+): Promise<ApiErrorBody | null> {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function login(
+  email: string,
+  password: string
+): Promise<CurrentUser> {
+  const response = await fetch(`${API_URL}/api/auth/login`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email, password }),
+  });
+
+  const result = await readJsonSafely(response);
+
+  if (!response.ok) {
+    throw new Error(result?.error ?? "Invalid email or password");
+  }
+
+  return result as unknown as CurrentUser;
+}
+
+export async function logout(): Promise<void> {
+  const response = await fetch(`${API_URL}/api/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  if (!response.ok && response.status !== 204) {
+    throw new Error("Unable to log out");
+  }
+}
+
+// Returns null (rather than throwing) for a 401, since "not logged in" is
+// the expected, common case when the app first loads.
+export async function getCurrentUser(): Promise<CurrentUser | null> {
+  const response = await fetch(`${API_URL}/api/auth/me`, {
+    credentials: "include",
+  });
+
+  if (response.status === 401) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error("Unable to retrieve the current user");
+  }
+
+  return response.json();
+}
+
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string
+): Promise<CurrentUser> {
+  const response = await fetch(`${API_URL}/api/auth/change-password`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+
+  const result = await readJsonSafely(response);
+
+  if (!response.ok) {
+    const message =
+      result?.details && result.details.length > 0
+        ? result.details.join("\n")
+        : result?.error ?? "Unable to change password";
+
+    throw new Error(message);
+  }
+
+  return result as unknown as CurrentUser;
+}
+
 export interface Category {
   id: number;
   name: string;

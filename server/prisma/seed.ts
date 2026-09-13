@@ -56,19 +56,36 @@ export async function main() {
   ];
 
   for (const u of users) {
+    // The seeded Administrator doesn't need to change password on first
+    // login, so a fresh checkout can exercise /admin/users immediately;
+    // everyone else follows the normal Lab 3 flow.
+    const mustChangePassword = u.role !== "ADMINISTRATOR";
+
     await prisma.user.upsert({
       where: { email: u.email },
-      update: { name: u.name, role: u.role, isActive: u.isActive },
+      // IMPORTANT: also reset passwordHash/mustChangePassword on update,
+      // not just on create. The auth test suites (both vitest and the e2e
+      // spec) log in as these seeded accounts and change their passwords
+      // as part of exercising AC-02. Without resetting credentials here,
+      // re-running `npm run prisma:seed` would silently leave a test's
+      // leftover password/mustChangePassword state in place, breaking the
+      // NEXT test run that expects the original seeded credentials —
+      // exactly what happened when the vitest suite ran before the e2e
+      // suite. Re-seeding must fully restore the known baseline.
+      update: {
+        name: u.name,
+        role: u.role,
+        isActive: u.isActive,
+        passwordHash,
+        mustChangePassword,
+      },
       create: {
         name: u.name,
         email: u.email,
         role: u.role,
         isActive: u.isActive,
         passwordHash,
-        // The seeded Administrator doesn't need to change password on
-        // first login, so a fresh checkout can exercise /admin/users
-        // immediately; everyone else follows the normal Lab 3 flow.
-        mustChangePassword: u.role !== "ADMINISTRATOR",
+        mustChangePassword,
       },
     });
   }

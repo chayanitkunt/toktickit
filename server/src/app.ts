@@ -1,11 +1,18 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
+import session from "express-session";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { getPrisma } from "./prisma.js";
 import { formatTicketNumber } from "./ticketNumber.js";
 import { isAllowedAttachmentMimeType } from "./attachmentValidation.js";
+import {
+  hashPassword,
+  verifyPassword,
+  validatePasswordPolicy,
+  requireAuth,
+} from "./auth.js";
 
 
 // getPrisma() is your lazy database handle. Call it INSIDE a route when you
@@ -16,8 +23,36 @@ void getPrisma;
 // Supertest can import `app` without opening a port. Do not merge these files.
 export const app = express();
 
-app.use(cors());          // already wired: lets the Vite dev server call this API
+// credentials: true + a reflected (non-wildcard) origin are both required for
+// the browser to send/receive the session cookie set below.
+app.use(
+  cors({
+    origin: process.env.CLIENT_ORIGIN ?? "http://localhost:5173",
+    credentials: true,
+  })
+);
 app.use(express.json());
+
+// ---------------------------------------------------------------------------
+// Issue 3 — session middleware
+// Server-side session, delivered as a signed httpOnly cookie. MemoryStore
+// (express-session's default) is sufficient for this local-lab threat model
+// and a single Node process; see docs/lab-03/specification.md §11.
+// ---------------------------------------------------------------------------
+app.use(
+  session({
+    name: "toktickit.sid",
+    secret: process.env.SESSION_SECRET ?? "dev-only-insecure-secret-change-me",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 1000 * 60 * 60 * 8, // 8 hours
+    },
+  })
+);
 const uploadDir = path.resolve("uploads");
 
 if (!fs.existsSync(uploadDir)) {
@@ -38,6 +73,199 @@ const upload = multer({
     }
   },
 });
+
+// ---------------------------------------------------------------------------
+// Issue 3 — Authentication
+//
+// POST /api/auth/login              -> establishes a session
+// POST /api/auth/logout             -> destroys it
+// GET  /api/auth/me                 -> current identity (requireAuth only —
+//                                       intentionally NOT behind
+//                                       requirePasswordChangeComplete, per
+//                                       BR-02's allowlist)
+// POST /api/auth/change-password    -> same allowlist exemption
+// ---------------------------------------------------------------------------
+
+app.post("/api/auth/login", async (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body ?? {};
+
+    if (
+      typeof email !== "string" ||
+      typeof password !== "string" ||
+      email.trim() === "" ||
+      password === ""
+    ) {
+      return res.status(400).json({
+        error: "Email and password are required",
+        code: "invalid_input",
+      });
+    }
+
+    // BR-13: email uniqueness/lookup is case-insensitive.
+    const user = await getPrisma().user.findFirst({
+      where: { email: { equals: email.trim(), mode: "insensitive" } },
+    });
+
+    // BR-10/AC-03: unknown email, wrong password, and a correct-but-inactive
+    // account all produce the exact same response — nothing distinguishes
+    // them from outside the server.
+    const rejectWithGenericError = () =>
+      res.status(401).json({
+        error: "Invalid email or password",
+        code: "invalid_credentials",
+      });
+
+    if (!user || !user.isActive) {
+      return rejectWithGenericError();
+    }
+
+    const passwordMatches = await verifyPassword(password, user.passwordHash);
+
+    if (!passwordMatches) {
+      return rejectWithGenericError();
+    }
+
+    // Regenerate the session id on privilege change (login) to avoid
+    // session fixation, then store only the user id server-side.
+    req.session.regenerate((err) => {
+      if (err) {
+        console.error(err);
+        return res.status(500).json({
+          error: "Unable to log in",
+          code: "server_error",
+        });
+      }
+
+      req.session.userId = user.id;
+
+      return res.status(200).json({
+        id: user.id,
+        name: user.name,
+        role: user.role,
+        mustChangePassword: user.mustChangePassword,
+      });
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      error: "Unable to log in",
+      code: "server_error",
+    });
+  }
+});
+
+app.post("/api/auth/logout", (req: Request, res: Response) => {
+  // FR-02/BR-12: logging out must invalidate the session server-side, not
+  // just clear the cookie client-side, so a replayed cookie is rejected.
+  req.session.destroy((err) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).json({
+        error: "Unable to log out",
+        code: "server_error",
+      });
+    }
+
+    res.clearCookie("toktickit.sid");
+    return res.status(204).send();
+  });
+});
+
+app.get("/api/auth/me", requireAuth, (req: Request, res: Response) => {
+  // FR-03/AC-05: only ever the caller's own identity — requireAuth already
+  // loaded it fresh from the database.
+  return res.status(200).json(req.currentUser);
+});
+
+app.post(
+  "/api/auth/change-password",
+  requireAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const { currentPassword, newPassword } = req.body ?? {};
+
+      if (
+        typeof currentPassword !== "string" ||
+        typeof newPassword !== "string" ||
+        currentPassword === ""
+      ) {
+        return res.status(400).json({
+          error: "Current and new password are required",
+          code: "invalid_input",
+        });
+      }
+
+      const user = await getPrisma().user.findUnique({
+        where: { id: req.currentUser!.id },
+      });
+
+      if (!user || !user.isActive) {
+        return res.status(401).json({
+          error: "Authentication required",
+          code: "not_authenticated",
+        });
+      }
+
+      const currentPasswordMatches = await verifyPassword(
+        currentPassword,
+        user.passwordHash
+      );
+
+      if (!currentPasswordMatches) {
+        return res.status(400).json({
+          error: "Current password is incorrect",
+          code: "invalid_current_password",
+        });
+      }
+
+      const policy = validatePasswordPolicy(newPassword);
+
+      if (!policy.valid) {
+        return res.status(400).json({
+          error: "New password does not meet the password requirements",
+          code: "weak_password",
+          details: policy.errors,
+        });
+      }
+
+      const newPasswordSameAsOld = await verifyPassword(
+        newPassword,
+        user.passwordHash
+      );
+
+      if (newPasswordSameAsOld) {
+        return res.status(400).json({
+          error: "New password must be different from the current password",
+          code: "password_reused",
+        });
+      }
+
+      const newPasswordHash = await hashPassword(newPassword);
+
+      await getPrisma().user.update({
+        where: { id: user.id },
+        data: {
+          passwordHash: newPasswordHash,
+          mustChangePassword: false,
+        },
+      });
+
+      return res.status(200).json({
+        id: user.id,
+        name: user.name,
+        role: user.role,
+        mustChangePassword: false,
+      });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        error: "Unable to change password",
+        code: "server_error",
+      });
+    }
+  }
+);
 
 // ---------------------------------------------------------------------------
 // Issue 2 — API health check
