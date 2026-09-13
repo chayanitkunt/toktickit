@@ -109,9 +109,10 @@ app.get("/api/related-systems", async (_req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 app.get("/api/requesters", async (_req: Request, res: Response) => {
   try {
-    const requesters = await getPrisma().requester.findMany({
+    const requesters = await getPrisma().user.findMany({
       where: {
         isActive: true,
+        role: "REQUESTER",
       },
       select: {
         id: true,
@@ -163,10 +164,11 @@ app.post(
       });
     }
 
-    const requester = await getPrisma().requester.findFirst({
+    const requester = await getPrisma().user.findFirst({
       where: {
         id: requesterId,
         isActive: true,
+        role: "REQUESTER",
       },
     });
 
@@ -344,10 +346,11 @@ app.get("/api/tickets", async (req: Request, res: Response) => {
     }
 
     // Verify that the requester exists and is active.
-    const requester = await getPrisma().requester.findFirst({
+    const requester = await getPrisma().user.findFirst({
       where: {
         id: requesterId,
         isActive: true,
+        role: "REQUESTER",
       },
     });
 
