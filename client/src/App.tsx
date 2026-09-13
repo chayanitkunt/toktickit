@@ -3,7 +3,10 @@ import CreateTicket from "./components/CreateTicket";
 import MyTickets from "./components/MyTickets";
 import RequesterSelector from "./components/RequesterSelector";
 import TicketDetail from "./components/TicketDetail";
-import { useDevelopmentRequester } from "./DevelopmentRequesterContext";
+import Login from "./components/Login";
+import ChangePassword from "./components/ChangePassword";
+import { useDevelopmentRequester, DevelopmentRequesterProvider } from "./DevelopmentRequesterContext";
+import { useAuth } from "./AuthContext";
 
 type Screen =
   | "requester"
@@ -11,7 +14,14 @@ type Screen =
   | "create"
   | "detail";
 
-export default function App() {
+const ROLE_LABELS: Record<string, string> = {
+  REQUESTER: "Requester",
+  IT_STAFF: "IT Support",
+  ADMINISTRATOR: "Administrator",
+};
+
+function AuthenticatedShell() {
+  const { user, logout } = useAuth();
   const { currentRequester } = useDevelopmentRequester();
 
   const [screen, setScreen] = useState<Screen>(
@@ -47,6 +57,10 @@ export default function App() {
 
   function handleChangeRequester() {
     setScreen("requester");
+  }
+
+  async function handleLogout() {
+    await logout();
   }
 
   return (
@@ -129,19 +143,47 @@ export default function App() {
               )}
             </div>
 
-            {/* Right: Requester Identity */}
-            {currentRequester && screen !== "requester" && (
-              <button
-                type="button"
-                onClick={handleChangeRequester}
-                className="btn btn-sm text-white border-white-50 ms-auto"
-                style={{
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {currentRequester.name}
-              </button>
-            )}
+            {/* Right: Authenticated identity + role + logout */}
+            <div className="d-flex align-items-center gap-2 ms-auto">
+              {currentRequester && screen !== "requester" && (
+                <button
+                  type="button"
+                  onClick={handleChangeRequester}
+                  className="btn btn-sm text-white border-white-50"
+                  style={{ whiteSpace: "nowrap" }}
+                  title="Development Requester selector (removed in Issue 4)"
+                >
+                  {currentRequester.name}
+                </button>
+              )}
+
+              {user && (
+                <div
+                  className="d-flex align-items-center gap-2"
+                  data-testid="current-user-identity"
+                >
+                  <span
+                    className="text-white small text-end"
+                    style={{ lineHeight: 1.1 }}
+                  >
+                    <span className="fw-semibold d-block">{user.name}</span>
+                    <span
+                      className="badge"
+                      style={{ backgroundColor: "#0B7A46" }}
+                    >
+                      {ROLE_LABELS[user.role] ?? user.role}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-light"
+                    onClick={handleLogout}
+                  >
+                    Logout
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -186,5 +228,40 @@ export default function App() {
           )}
       </main>
     </div>
+  );
+}
+
+function LoadingScreen() {
+  return (
+    <div
+      className="d-flex align-items-center justify-content-center"
+      style={{ minHeight: "100vh", backgroundColor: "#F5F7F6" }}
+    >
+      <div className="spinner-border" style={{ color: "#006B3C" }} role="status">
+        <span className="visually-hidden">Loading…</span>
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  if (!user) {
+    return <Login />;
+  }
+
+  if (user.mustChangePassword) {
+    return <ChangePassword />;
+  }
+
+  return (
+    <DevelopmentRequesterProvider>
+      <AuthenticatedShell />
+    </DevelopmentRequesterProvider>
   );
 }
