@@ -114,12 +114,6 @@ export interface Category {
   name: string;
 }
 
-export interface Requester {
-  id: number;
-  name: string;
-  email: string;
-}
-
 export interface SystemStatus {
   online: boolean;
   categories: Category[];
@@ -161,20 +155,6 @@ export async function getCategories(): Promise<Category[]> {
   return response.json();
 }
 
-export async function getRequesters(): Promise<Requester[]> {
-  const response = await fetch(
-    `${API_URL}/api/requesters`
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      "Unable to retrieve requesters from API"
-    );
-  }
-
-  return response.json();
-}
-
 // ---------------------------------------------------------
 // Ticket types
 // ---------------------------------------------------------
@@ -184,12 +164,16 @@ export type RequestedPriority =
   | "MEDIUM"
   | "HIGH";
 
+// Full Lab 3 status set (server/src/app.ts's `allowedStatuses`).
 export type CurrentStatus =
   | "NEW"
+  | "OPEN"
   | "IN_PROGRESS"
+  | "WAITING_FOR_REQUESTER"
   | "RESOLVED"
   | "CLOSED"
-  | "PENDING";
+  | "REOPENED"
+  | "CANCELLED";
 
 // ---------------------------------------------------------
 // My Tickets
@@ -203,9 +187,12 @@ export interface TicketListItem {
   categoryName: string;
   relatedSystemName: string;
   requestedPriority: RequestedPriority;
+  itPriority: RequestedPriority;
   currentStatus: CurrentStatus;
   lastUpdated: string;
   attachmentCount: number;
+  ownerName: string | null;
+  problemAppearsResolved: boolean;
 }
 
 export interface TicketListMeta {
@@ -221,7 +208,6 @@ export interface TicketListResponse {
 }
 
 export interface TicketListParams {
-  requesterId: number;
   search?: string;
   categoryId?: number;
   priority?: RequestedPriority;
@@ -277,11 +263,7 @@ export async function getMyTickets(
   const response = await fetch(
     `${API_URL}/api/tickets?${query.toString()}`,
     {
-      headers: {
-        "X-Requester-Id": String(
-          params.requesterId
-        ),
-      },
+      credentials: "include",
     }
   );
 
@@ -334,7 +316,6 @@ export interface CreateTicketData {
 }
 
 export async function createTicket(
-  requesterId: number,
   data: CreateTicketData
 ) {
   const formData = new FormData();
@@ -357,9 +338,7 @@ export async function createTicket(
 
   const response = await fetch(`${API_URL}/api/tickets`, {
     method: "POST",
-    headers: {
-      "X-Requester-Id": String(requesterId),
-    },
+    credentials: "include",
     body: formData,
   });
 
@@ -400,7 +379,9 @@ export interface TicketDetail {
   summary: string;
   description: string;
   requestedPriority: RequestedPriority;
+  itPriority: RequestedPriority;
   currentStatus: CurrentStatus;
+  problemAppearsResolved: boolean;
   createdAt: string;
   updatedAt: string;
   category: {
@@ -411,19 +392,20 @@ export interface TicketDetail {
     id: number;
     name: string;
   };
+  owner: {
+    id: number;
+    name: string;
+  } | null;
   attachments: TicketAttachment[];
 }
 
 export async function getTicketDetail(
-  requesterId: number,
   ticketId: number
 ): Promise<TicketDetail> {
   const response = await fetch(
     `${API_URL}/api/tickets/${ticketId}`,
     {
-      headers: {
-        "X-Requester-Id": String(requesterId),
-      },
+      credentials: "include",
     }
   );
 
@@ -437,7 +419,6 @@ export async function getTicketDetail(
 }
 
 export async function addAttachments(
-  requesterId: number,
   ticketId: number,
   files: File[]
 ) {
@@ -451,9 +432,7 @@ export async function addAttachments(
     `${API_URL}/api/tickets/${ticketId}/attachments`,
     {
       method: "POST",
-      headers: {
-        "X-Requester-Id": String(requesterId),
-      },
+      credentials: "include",
       body: formData,
     }
   );
@@ -470,7 +449,6 @@ export async function addAttachments(
 }
 
 export async function removeAttachment(
-  requesterId: number,
   ticketId: number,
   attachmentId: number,
   reason: string
@@ -479,8 +457,8 @@ export async function removeAttachment(
     `${API_URL}/api/tickets/${ticketId}/attachments/${attachmentId}`,
     {
       method: "DELETE",
+      credentials: "include",
       headers: {
-        "X-Requester-Id": String(requesterId),
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ reason }),
@@ -506,16 +484,13 @@ export function getAttachmentDownloadUrl(
 }
 
 export async function downloadAttachment(
-  requesterId: number,
   ticketId: number,
   attachmentId: number
 ): Promise<Blob> {
   const response = await fetch(
     `${API_URL}/api/tickets/${ticketId}/attachments/${attachmentId}/download`,
     {
-      headers: {
-        "X-Requester-Id": String(requesterId),
-      },
+      credentials: "include",
     }
   );
 
@@ -529,3 +504,103 @@ export async function downloadAttachment(
 
   return response.blob();
 }
+
+// ---------------------------------------------------------
+// Issue 4 — Public Comments (BR-04, shared Requester/IT Staff/Admin route)
+// ---------------------------------------------------------
+
+export interface TicketComment {
+  id: number;
+  content: string;
+  createdAt: string;
+  author: {
+    id: number;
+    name: string;
+    role: UserRole;
+  };
+}
+
+export async function getComments(
+  ticketId: number
+): Promise<TicketComment[]> {
+  const response = await fetch(
+    `${API_URL}/api/tickets/${ticketId}/comments`,
+    {
+      credentials: "include",
+    }
+  );
+
+  const result = await readJsonSafely(response);
+
+  if (!response.ok) {
+    throw new Error(
+      (result as unknown as ApiErrorBody)?.error ??
+        "Unable to retrieve comments"
+    );
+  }
+
+  return result as unknown as TicketComment[];
+}
+
+export async function postComment(
+  ticketId: number,
+  content: string
+): Promise<TicketComment> {
+  const response = await fetch(
+    `${API_URL}/api/tickets/${ticketId}/comments`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ content }),
+    }
+  );
+
+  const result = await readJsonSafely(response);
+
+  if (!response.ok) {
+    throw new Error(result?.error ?? "Unable to post comment");
+  }
+
+  return result as unknown as TicketComment;
+}
+
+// ---------------------------------------------------------
+// Issue 4 — "Problem Appears Resolved" (FR-08/BR-05, Requester-only)
+// ---------------------------------------------------------
+
+export async function setProblemAppearsResolved(
+  ticketId: number,
+  problemAppearsResolved: boolean
+): Promise<{
+  id: number;
+  problemAppearsResolved: boolean;
+  currentStatus: CurrentStatus;
+}> {
+  const response = await fetch(
+    `${API_URL}/api/tickets/${ticketId}/resolution-flag`,
+    {
+      method: "PATCH",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ problemAppearsResolved }),
+    }
+  );
+
+  const result = await readJsonSafely(response);
+
+  if (!response.ok) {
+    throw new Error(result?.error ?? "Unable to update ticket");
+  }
+
+  return result as unknown as {
+    id: number;
+    problemAppearsResolved: boolean;
+    currentStatus: CurrentStatus;
+  };
+}
+

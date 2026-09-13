@@ -2,15 +2,18 @@ import { useCallback, useEffect, useState } from "react";
 import {
   addAttachments,
   downloadAttachment,
+  getComments,
   getTicketDetail,
+  postComment,
   removeAttachment,
+  setProblemAppearsResolved,
   type TicketAttachment,
+  type TicketComment,
   type TicketDetail as TicketDetailData,
 } from "../api";
 
 interface TicketDetailProps {
   ticketId: number;
-  requesterId: number;
   onBack: () => void;
 }
 
@@ -26,11 +29,18 @@ function formatFileSize(bytes: number) {
 }
 
 const STATUS_LABELS: Record<string, { label: string; bg: string; color: string }> = {
-  NEW: { label: "Open", bg: "#E0F2FE", color: "#0369A1" },
+  NEW: { label: "New", bg: "#E0F2FE", color: "#0369A1" },
+  OPEN: { label: "Open", bg: "#E0F2FE", color: "#0369A1" },
   IN_PROGRESS: { label: "In Progress", bg: "#DCFCE7", color: "#15803D" },
-  PENDING: { label: "Pending", bg: "#FEF3C7", color: "#B45309" },
+  WAITING_FOR_REQUESTER: {
+    label: "Waiting for You",
+    bg: "#FEF3C7",
+    color: "#B45309",
+  },
   RESOLVED: { label: "Resolved", bg: "#DCFCE7", color: "#15803D" },
   CLOSED: { label: "Closed", bg: "#EEF2F0", color: "#5A6E65" },
+  REOPENED: { label: "Reopened", bg: "#FEE2E2", color: "#B91C1C" },
+  CANCELLED: { label: "Cancelled", bg: "#EEF2F0", color: "#5A6E65" },
 };
 
 const PRIORITY_STYLES: Record<string, { bg: string; color: string }> = {
@@ -102,11 +112,7 @@ function ReadOnlyField({
   );
 }
 
-export default function TicketDetail({
-  ticketId,
-  requesterId,
-  onBack,
-}: TicketDetailProps) {
+export default function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
   const [ticket, setTicket] = useState<TicketDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -119,11 +125,23 @@ export default function TicketDetail({
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [actionError, setActionError] = useState("");
 
+  // Issue 4 — Public Comments
+  const [comments, setComments] = useState<TicketComment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(true);
+  const [commentsError, setCommentsError] = useState("");
+  const [newComment, setNewComment] = useState("");
+  const [postingComment, setPostingComment] = useState(false);
+  const [commentPostError, setCommentPostError] = useState("");
+
+  // Issue 4 — "Problem Appears Resolved" (BR-05: flag only, never status)
+  const [updatingResolutionFlag, setUpdatingResolutionFlag] = useState(false);
+  const [resolutionFlagError, setResolutionFlagError] = useState("");
+
   const loadTicket = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
-      const data = await getTicketDetail(requesterId, ticketId);
+      const data = await getTicketDetail(ticketId);
       setTicket(data);
     } catch (err) {
       setError(
@@ -132,11 +150,27 @@ export default function TicketDetail({
     } finally {
       setLoading(false);
     }
-  }, [requesterId, ticketId]);
+  }, [ticketId]);
+
+  const loadComments = useCallback(async () => {
+    try {
+      setCommentsLoading(true);
+      setCommentsError("");
+      const data = await getComments(ticketId);
+      setComments(data);
+    } catch (err) {
+      setCommentsError(
+        err instanceof Error ? err.message : "Unable to load comments"
+      );
+    } finally {
+      setCommentsLoading(false);
+    }
+  }, [ticketId]);
 
   useEffect(() => {
     loadTicket();
-  }, [loadTicket]);
+    loadComments();
+  }, [loadTicket, loadComments]);
 
   async function handleAddAttachments() {
     if (pendingFiles.length === 0) return;
@@ -144,7 +178,7 @@ export default function TicketDetail({
     try {
       setUploading(true);
       setUploadError("");
-      await addAttachments(requesterId, ticketId, pendingFiles);
+      await addAttachments(ticketId, pendingFiles);
       setPendingFiles([]);
       await loadTicket();
     } catch (err) {
@@ -161,11 +195,7 @@ export default function TicketDetail({
       setActionError("");
       setDownloadingId(attachment.id);
 
-      const blob = await downloadAttachment(
-        requesterId,
-        ticketId,
-        attachment.id
-      );
+      const blob = await downloadAttachment(ticketId, attachment.id);
 
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -201,7 +231,7 @@ export default function TicketDetail({
     try {
       setActionError("");
       setRemovingId(attachment.id);
-      await removeAttachment(requesterId, ticketId, attachment.id, reason.trim());
+      await removeAttachment(ticketId, attachment.id, reason.trim());
       await loadTicket();
     } catch (err) {
       setActionError(
@@ -209,6 +239,50 @@ export default function TicketDetail({
       );
     } finally {
       setRemovingId(null);
+    }
+  }
+
+  async function handlePostComment(e: React.FormEvent) {
+    e.preventDefault();
+
+    const trimmed = newComment.trim();
+    if (trimmed === "") {
+      setCommentPostError("Comment cannot be empty.");
+      return;
+    }
+
+    try {
+      setPostingComment(true);
+      setCommentPostError("");
+      await postComment(ticketId, trimmed);
+      setNewComment("");
+      await loadComments();
+    } catch (err) {
+      setCommentPostError(
+        err instanceof Error ? err.message : "Unable to post comment"
+      );
+    } finally {
+      setPostingComment(false);
+    }
+  }
+
+  async function handleToggleResolved() {
+    if (!ticket) return;
+
+    try {
+      setUpdatingResolutionFlag(true);
+      setResolutionFlagError("");
+      await setProblemAppearsResolved(
+        ticketId,
+        !ticket.problemAppearsResolved
+      );
+      await loadTicket();
+    } catch (err) {
+      setResolutionFlagError(
+        err instanceof Error ? err.message : "Unable to update ticket"
+      );
+    } finally {
+      setUpdatingResolutionFlag(false);
     }
   }
 
@@ -246,6 +320,12 @@ export default function TicketDetail({
   const activeAttachments = ticket.attachments.filter((a) => !a.isRemoved);
   const removedAttachments = ticket.attachments.filter((a) => a.isRemoved);
 
+  // BR-05: a Requester can flag a problem as appearing resolved, but only
+  // IT Staff/Administrator can formally move the Ticket to Resolved/Closed.
+  const canOfferResolvedToggle = !["CLOSED", "CANCELLED"].includes(
+    ticket.currentStatus
+  );
+
   return (
     <div className="py-3">
       {/* Breadcrumb */}
@@ -275,7 +355,17 @@ export default function TicketDetail({
             >
               {ticket.ticketNumber}
             </h1>
-            <StatusBadge status={ticket.currentStatus} />
+            <div className="d-flex align-items-center gap-2">
+              {ticket.problemAppearsResolved && (
+                <span
+                  className="badge rounded-pill fw-semibold px-3 py-2"
+                  style={{ backgroundColor: "#DCFCE7", color: "#15803D" }}
+                >
+                  You marked this resolved
+                </span>
+              )}
+              <StatusBadge status={ticket.currentStatus} />
+            </div>
           </div>
 
           <div className="row">
@@ -303,11 +393,23 @@ export default function TicketDetail({
                 value={<PriorityBadge priority={ticket.requestedPriority} />}
               />
             </div>
+            <div className="col-12 col-md-6">
+              <ReadOnlyField
+                label="IT Priority"
+                value={<PriorityBadge priority={ticket.itPriority} />}
+              />
+            </div>
+            <div className="col-12 col-md-6">
+              <ReadOnlyField
+                label="Ticket Owner"
+                value={ticket.owner?.name ?? "Unassigned"}
+              />
+            </div>
           </div>
 
           <ReadOnlyField label="Summary" value={ticket.summary} />
 
-          <div className="mb-1">
+          <div className="mb-3">
             <div className="small fw-semibold mb-1" style={{ color: "#5A6E65" }}>
               Description
             </div>
@@ -325,12 +427,52 @@ export default function TicketDetail({
               {ticket.description}
             </div>
           </div>
+
+          {/* Issue 4 — Problem Appears Resolved (FR-08/BR-05) */}
+          {canOfferResolvedToggle && (
+            <div>
+              {resolutionFlagError && (
+                <div className="alert alert-danger py-2" role="alert">
+                  {resolutionFlagError}
+                </div>
+              )}
+              <button
+                type="button"
+                className="btn"
+                disabled={updatingResolutionFlag}
+                onClick={handleToggleResolved}
+                style={
+                  ticket.problemAppearsResolved
+                    ? {
+                        backgroundColor: "#FFFFFF",
+                        color: "#006B3C",
+                        border: "1px solid #006B3C",
+                      }
+                    : {
+                        backgroundColor: "#006B3C",
+                        color: "#FFFFFF",
+                        border: "none",
+                      }
+                }
+              >
+                {updatingResolutionFlag
+                  ? "Updating..."
+                  : ticket.problemAppearsResolved
+                  ? "Undo: Problem No Longer Appears Resolved"
+                  : "Mark Problem Appears Resolved"}
+              </button>
+              <div className="form-text mt-1">
+                This lets IT Staff know you think the issue is fixed. Only IT
+                Staff can formally resolve or close the Ticket.
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Attachments Section */}
       <div
-        className="card"
+        className="card mb-4"
         style={{ border: "1px solid #E0E6E2", borderRadius: "10px" }}
       >
         <div className="card-body p-4">
@@ -466,6 +608,117 @@ export default function TicketDetail({
           </div>
         </div>
       </div>
+
+      {/* Issue 4 — Public Comments (BR-04: visible to Requester, IT Staff,
+          Administrator; Internal Notes are a separate, staff-only resource
+          added in a later issue and never rendered here). */}
+      <div
+        className="card"
+        style={{ border: "1px solid #E0E6E2", borderRadius: "10px" }}
+      >
+        <div className="card-body p-4">
+          <h2 className="h5 fw-bold mb-3" style={{ color: "#1A2E26" }}>
+            Public Comments ({comments.length})
+          </h2>
+
+          {commentsError && (
+            <div className="alert alert-danger py-2" role="alert">
+              {commentsError}
+            </div>
+          )}
+
+          {commentsLoading ? (
+            <div className="text-center py-3">
+              <div
+                className="spinner-border spinner-border-sm"
+                role="status"
+                style={{ color: "#006B3C" }}
+              />
+            </div>
+          ) : comments.length === 0 ? (
+            <p className="text-muted mb-3">
+              No comments yet. Add one below to communicate with IT Staff.
+            </p>
+          ) : (
+            <ul className="list-group mb-3">
+              {comments.map((comment) => (
+                <li key={comment.id} className="list-group-item">
+                  <div className="d-flex justify-content-between align-items-baseline flex-wrap gap-2 mb-1">
+                    <span className="fw-semibold" style={{ color: "#1A2E26" }}>
+                      {comment.author.name}
+                      <span
+                        className="badge ms-2"
+                        style={{
+                          backgroundColor: "#EEF2F0",
+                          color: "#5A6E65",
+                          fontWeight: 500,
+                        }}
+                      >
+                        {comment.author.role === "REQUESTER"
+                          ? "Requester"
+                          : comment.author.role === "IT_STAFF"
+                          ? "IT Support"
+                          : "Administrator"}
+                      </span>
+                    </span>
+                    <span className="small text-muted">
+                      {formatDate(comment.createdAt)}
+                    </span>
+                  </div>
+                  <div style={{ color: "#1A2E26", whiteSpace: "pre-wrap" }}>
+                    {comment.content}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <hr />
+
+          <form onSubmit={handlePostComment}>
+            <label
+              htmlFor="new-comment"
+              className="form-label fw-semibold"
+              style={{ color: "#1A2E26" }}
+            >
+              Add Public Comment
+            </label>
+            <textarea
+              id="new-comment"
+              rows={3}
+              className="form-control mb-2"
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              maxLength={2000}
+              placeholder="Type your comment here..."
+            />
+            <div className="form-text mb-2">
+              Visible to you, IT Staff, and Administrators.{" "}
+              {newComment.length}/2000
+            </div>
+
+            {commentPostError && (
+              <div className="alert alert-danger py-2" role="alert">
+                {commentPostError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="btn"
+              disabled={postingComment || newComment.trim() === ""}
+              style={{
+                backgroundColor: "#006B3C",
+                color: "#FFFFFF",
+                border: "none",
+              }}
+            >
+              {postingComment ? "Posting..." : "Post Comment"}
+            </button>
+          </form>
+        </div>
+      </div>
     </div>
   );
 }
+

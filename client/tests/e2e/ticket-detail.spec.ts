@@ -1,18 +1,13 @@
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
+import {
+  loginAsRequester,
+  switchToRequester,
+  REQUESTER_A,
+  REQUESTER_B,
+  SEED_PASSWORD,
+} from "./helpers/auth";
 
 const API_URL = "http://localhost:3000";
-
-async function selectRequester(page: Page, label: string) {
-  await page.goto("/");
-
-  const requesterSelect = page.locator("#requester-select");
-
-  await expect(requesterSelect).toBeVisible();
-
-  await requesterSelect.selectOption({ label });
-
-  await page.getByRole("button", { name: /Continue/i }).click();
-}
 
 async function createTicket(
   page: Page,
@@ -72,29 +67,30 @@ async function openTicketBySummary(page: Page, summary: string) {
   await row.getByRole("button").click();
 }
 
-async function findRequesterId(
+// Issue 4: GET /api/requesters (the Development Requester list) is removed.
+// Ownership checks now go through a real authenticated session cookie
+// instead of an X-Requester-Id header, so this logs in via the API and
+// returns the resulting request context (which carries the cookie) plus
+// the caller's own id from /api/auth/me.
+async function loginApi(
   request: APIRequestContext,
-  name: string
-): Promise<number> {
-  const response = await request.get(`${API_URL}/api/requesters`);
+  email: string
+): Promise<{ id: number }> {
+  const loginResponse = await request.post(`${API_URL}/api/auth/login`, {
+    data: { email, password: SEED_PASSWORD },
+  });
 
-  expect(response.ok()).toBe(true);
+  expect(loginResponse.ok()).toBe(true);
 
-  const requesters: Array<{ id: number; name: string }> =
-    await response.json();
-
-  const requester = requesters.find((item) => item.name === name);
-
-  expect(requester).toBeDefined();
-
-  return requester!.id;
+  const me = await loginResponse.json();
+  return { id: me.id };
 }
 
 test.describe("Requester Ticket Detail — view mode", () => {
   test("opens a ticket from My Tickets and shows read-only ticket information", async ({
     page,
   }) => {
-    await selectRequester(page, "Alice Johnson");
+    await loginAsRequester(page, REQUESTER_A.email);
 
     const summary = `E2E Ticket Detail View ${Date.now()}`;
 
@@ -117,9 +113,16 @@ test.describe("Requester Ticket Detail — view mode", () => {
 
     await expect(page.getByText(summary, { exact: true })).toBeVisible();
     await expect(page.getByText("Hardware")).toBeVisible();
-    await expect(page.getByText("HIGH")).toBeVisible();
+    // Lab 3: IT Priority defaults to Requested Priority (BR-07), so both
+    // badges read "HIGH" here — .first() avoids a strict-mode violation
+    // while still confirming the priority rendered somewhere on the page.
+    await expect(page.getByText("HIGH").first()).toBeVisible();
     await expect(page.getByText("Corporate Laptop")).toBeVisible();
-    await expect(page.getByText("Open", { exact: true })).toBeVisible();
+    // Lab 3 added a dedicated "New" status ahead of "Open" in the required
+    // status set (§4.5); ticket creation sets currentStatus to NEW, and
+    // only IT Staff can later transition it to Open — a freshly created
+    // ticket reads "New", not "Open".
+    await expect(page.getByText("New", { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "← Back to My Tickets" }).click();
 
@@ -131,7 +134,7 @@ test.describe("Requester Ticket Detail — view mode", () => {
 
 test.describe("Requester Ticket Detail — attachments", () => {
   test("can download an active attachment", async ({ page }) => {
-    await selectRequester(page, "Alice Johnson");
+    await loginAsRequester(page, REQUESTER_A.email);
 
     const summary = `E2E Download Attachment ${Date.now()}`;
     await createTicket(page, summary, "Software", "Corporate Laptop", "LOW");
@@ -163,7 +166,7 @@ test.describe("Requester Ticket Detail — attachments", () => {
   test("can add an attachment and then soft-remove it with a reason", async ({
     page,
   }) => {
-    await selectRequester(page, "Alice Johnson");
+    await loginAsRequester(page, REQUESTER_A.email);
 
     const summary = `E2E Attachment Lifecycle ${Date.now()}`;
 
@@ -219,24 +222,58 @@ test.describe("Requester Ticket Detail — ownership protection", () => {
   test("a direct API request cannot retrieve another requester's ticket", async ({
     request,
   }) => {
-    const aliceId = await findRequesterId(request, "Alice Johnson");
-    const bobId = await findRequesterId(request, "Bob Smith");
+    // Log in as Requester A directly against the API; supertest-style
+    // APIRequestContext carries the resulting session cookie automatically
+    // for subsequent calls made with this same `request` fixture.
+    const requesterA = await loginApi(request, REQUESTER_A.email);
 
-    const aliceTicketsResponse = await request.get(`${API_URL}/api/tickets`, {
-      headers: { "X-Requester-Id": String(aliceId) },
+    const aTicketsResponse = await request.get(`${API_URL}/api/tickets`);
+    expect(aTicketsResponse.ok()).toBe(true);
+
+    const aTickets = await aTicketsResponse.json();
+
+    // Make sure Requester A actually owns at least one ticket to test
+    // against, creating one via the API if necessary.
+    let ticketId: number;
+    if (aTickets.data.length > 0) {
+      ticketId = aTickets.data[0].id;
+    } else {
+      const categoriesResponse = await request.get(`${API_URL}/api/categories`);
+      const relatedSystemsResponse = await request.get(
+        `${API_URL}/api/related-systems`
+      );
+      const categories = await categoriesResponse.json();
+      const relatedSystems = await relatedSystemsResponse.json();
+
+      const createResponse = await request.post(`${API_URL}/api/tickets`, {
+        multipart: {
+          categoryId: String(categories[0].id),
+          relatedSystemId: String(relatedSystems[0].id),
+          summary: "Ownership protection API test ticket",
+          description:
+            "Created directly via the API to test cross-requester access.",
+          requestedPriority: "LOW",
+        },
+      });
+      expect(createResponse.ok()).toBe(true);
+      ticketId = (await createResponse.json()).id;
+    }
+
+    void requesterA; // id retained for clarity/debugging only
+
+    // A brand-new API request context has no session cookie at all, so
+    // logging in as Requester B here uses a fresh context to avoid mixing
+    // cookies with Requester A's session on the shared `request` fixture.
+    const loginAsB = await request.post(`${API_URL}/api/auth/login`, {
+      data: { email: REQUESTER_B.email, password: SEED_PASSWORD },
     });
+    expect(loginAsB.ok()).toBe(true);
 
-    expect(aliceTicketsResponse.ok()).toBe(true);
-
-    const aliceTickets = await aliceTicketsResponse.json();
-
-    expect(aliceTickets.data.length).toBeGreaterThan(0);
-
-    const ticketId = aliceTickets.data[0].id;
-
+    // NOTE: Playwright's `request` fixture shares one cookie jar per test,
+    // so logging in as B above has already replaced A's session cookie
+    // with B's. The next call is therefore made "as B".
     const crossAccessResponse = await request.get(
-      `${API_URL}/api/tickets/${ticketId}`,
-      { headers: { "X-Requester-Id": String(bobId) } }
+      `${API_URL}/api/tickets/${ticketId}`
     );
 
     expect(crossAccessResponse.status()).toBe(404);
@@ -245,7 +282,7 @@ test.describe("Requester Ticket Detail — ownership protection", () => {
   test("one requester's ticket never appears in another requester's My Tickets list", async ({
     page,
   }) => {
-    await selectRequester(page, "Alice Johnson");
+    await loginAsRequester(page, REQUESTER_A.email);
 
     const summary = `E2E Ownership Isolation ${Date.now()}`;
 
@@ -267,13 +304,14 @@ test.describe("Requester Ticket Detail — ownership protection", () => {
       page.locator("tbody tr").filter({ hasText: summary })
     ).toHaveCount(1);
 
-    await selectRequester(page, "Bob Smith");
+    await switchToRequester(page, REQUESTER_B.email);
 
     const bobSearchInput = page.getByPlaceholder(
       "Search by ticket number or summary..."
     );
 
     await bobSearchInput.fill(summary);
+
 
     await expect(
       page.locator("tbody tr").filter({ hasText: summary })

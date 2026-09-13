@@ -12,6 +12,8 @@ import {
   verifyPassword,
   validatePasswordPolicy,
   requireAuth,
+  requirePasswordChangeComplete,
+  requireRole,
 } from "./auth.js";
 
 
@@ -331,81 +333,28 @@ app.get("/api/related-systems", async (_req: Request, res: Response) => {
 });
 
 // ---------------------------------------------------------------------------
-// Issue 12 — Development Requester list
-// Return only active Requesters for the temporary Development Requester
-// selection flow used before authentication is introduced in Lab 3.
+// Issue 4 — Requester identity
+//
+// Every Lab 2 Requester route below is now protected by requireAuth +
+// requirePasswordChangeComplete + requireRole("REQUESTER"). Ownership always
+// comes from req.currentUser!.id (the authenticated session), never from a
+// client-supplied requesterId/X-Requester-Id — see BR-03/AC-06. The
+// Development Requester list (GET /api/requesters) and the X-Requester-Id
+// header it powered are removed entirely along with the client selector.
 // ---------------------------------------------------------------------------
-app.get("/api/requesters", async (_req: Request, res: Response) => {
-  try {
-    const requesters = await getPrisma().user.findMany({
-      where: {
-        isActive: true,
-        role: "REQUESTER",
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-      },
-      orderBy: {
-        id: "asc",
-      },
-    });
-
-    res.status(200).json(requesters);
-  } catch {
-    res.status(500).json({
-      error: "Unable to retrieve requesters",
-    });
-  }
-});
-// ---------------------------------------------------------------------------
-// Issue 14 — Create Ticket
-// ---------------------------------------------------------------------------
-
-function getRequesterId(req: Request): number | null {
-  const value = req.header("X-Requester-Id");
-
-  if (!value) {
-    return null;
-  }
-
-  const requesterId = Number(value);
-
-  return Number.isInteger(requesterId) && requesterId > 0
-    ? requesterId
-    : null;
-}
-
+const requireRequester = [
+  requireAuth,
+  requirePasswordChangeComplete,
+  requireRole("REQUESTER"),
+];
 
 app.post(
   "/api/tickets",
+  ...requireRequester,
   upload.array("attachments", 5),
   async (req: Request, res: Response) => {
   try {
-    const requesterId = getRequesterId(req);
-
-    if (!requesterId) {
-      return res.status(400).json({
-        statusCode: 400,
-        message: "X-Requester-Id header is required",
-      });
-    }
-
-    const requester = await getPrisma().user.findFirst({
-      where: {
-        id: requesterId,
-        isActive: true,
-        role: "REQUESTER",
-      },
-    });
-
-    if (!requester) {
-      return res.status(400).json({
-        statusCode: 400,
-        message: "Invalid or inactive requester",
-      });
-    }
+    const requesterId = req.currentUser!.id;
 
     const {
       categoryId,
@@ -516,6 +465,9 @@ app.post(
     summary: trimmedSummary,
     description: trimmedDescription,
     requestedPriority,
+    // BR-07: IT Priority defaults to Requested Priority on creation and may
+    // only be changed by IT Staff/Administrator afterward.
+    itPriority: requestedPriority,
     currentStatus: "NEW",
     attachments: {
       create: files.map((file) => ({
@@ -562,32 +514,9 @@ return res.status(201).json(updatedTicket);
 // Retrieve paginated tickets owned by the currently selected Requester.
 // ---------------------------------------------------------------------------
 
-app.get("/api/tickets", async (req: Request, res: Response) => {
+app.get("/api/tickets", ...requireRequester, async (req: Request, res: Response) => {
   try {
-    const requesterId = getRequesterId(req);
-
-    if (!requesterId) {
-      return res.status(400).json({
-        statusCode: 400,
-        message: "X-Requester-Id header is required",
-      });
-    }
-
-    // Verify that the requester exists and is active.
-    const requester = await getPrisma().user.findFirst({
-      where: {
-        id: requesterId,
-        isActive: true,
-        role: "REQUESTER",
-      },
-    });
-
-    if (!requester) {
-      return res.status(400).json({
-        statusCode: 400,
-        message: "Invalid or inactive requester",
-      });
-    }
+    const requesterId = req.currentUser!.id;
 
     const {
       search,
@@ -691,10 +620,13 @@ app.get("/api/tickets", async (req: Request, res: Response) => {
     if (status !== undefined) {
       const allowedStatuses = [
         "NEW",
+        "OPEN",
         "IN_PROGRESS",
+        "WAITING_FOR_REQUESTER",
         "RESOLVED",
         "CLOSED",
-        "PENDING",
+        "REOPENED",
+        "CANCELLED",
       ];
 
       if (
@@ -756,6 +688,11 @@ app.get("/api/tickets", async (req: Request, res: Response) => {
               name: true,
             },
           },
+          owner: {
+            select: {
+              name: true,
+            },
+          },
           attachments: {
             where: {
               isRemoved: false,
@@ -784,9 +721,12 @@ app.get("/api/tickets", async (req: Request, res: Response) => {
       categoryName: ticket.category.name,
       relatedSystemName: ticket.relatedSystem.name,
       requestedPriority: ticket.requestedPriority,
+      itPriority: ticket.itPriority,
       currentStatus: ticket.currentStatus,
       lastUpdated: ticket.updatedAt,
       attachmentCount: ticket.attachments.length,
+      ownerName: ticket.owner?.name ?? null,
+      problemAppearsResolved: ticket.problemAppearsResolved,
     }));
 
     const totalPages =
@@ -818,16 +758,9 @@ app.get("/api/tickets", async (req: Request, res: Response) => {
 // Retrieve a ticket owned by the currently selected Requester.
 // ---------------------------------------------------------------------------
 
-app.get("/api/tickets/:id", async (req: Request, res: Response) => {
+app.get("/api/tickets/:id", ...requireRequester, async (req: Request, res: Response) => {
   try {
-    const requesterId = getRequesterId(req);
-
-    if (!requesterId) {
-      return res.status(400).json({
-        statusCode: 400,
-        message: "X-Requester-Id header is required",
-      });
-    }
+    const requesterId = req.currentUser!.id;
 
     const ticketId = Number(req.params.id);
 
@@ -851,6 +784,12 @@ app.get("/api/tickets/:id", async (req: Request, res: Response) => {
           },
         },
         relatedSystem: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        owner: {
           select: {
             id: true,
             name: true,
@@ -894,16 +833,10 @@ app.get("/api/tickets/:id", async (req: Request, res: Response) => {
 
 app.get(
   "/api/tickets/:id/attachments/:attachmentId/download",
+  ...requireRequester,
   async (req: Request, res: Response) => {
     try {
-      const requesterId = getRequesterId(req);
-
-      if (!requesterId) {
-        return res.status(400).json({
-          statusCode: 400,
-          message: "X-Requester-Id header is required",
-        });
-      }
+      const requesterId = req.currentUser!.id;
 
       const ticketId = Number(req.params.id);
       const attachmentId = Number(req.params.attachmentId);
@@ -971,17 +904,11 @@ app.get(
 
 app.post(
   "/api/tickets/:id/attachments",
+  ...requireRequester,
   upload.array("attachments", 5),
   async (req: Request, res: Response) => {
     try {
-      const requesterId = getRequesterId(req);
-
-      if (!requesterId) {
-        return res.status(400).json({
-          statusCode: 400,
-          message: "X-Requester-Id header is required",
-        });
-      }
+      const requesterId = req.currentUser!.id;
 
       const ticketId = Number(req.params.id);
 
@@ -1065,16 +992,10 @@ app.post(
 
 app.delete(
   "/api/tickets/:id/attachments/:attachmentId",
+  ...requireRequester,
   async (req: Request, res: Response) => {
     try {
-      const requesterId = getRequesterId(req);
-
-      if (!requesterId) {
-        return res.status(400).json({
-          statusCode: 400,
-          message: "X-Requester-Id header is required",
-        });
-      }
+      const requesterId = req.currentUser!.id;
 
       const ticketId = Number(req.params.id);
       const attachmentId = Number(req.params.attachmentId);
@@ -1155,6 +1076,205 @@ app.delete(
       return res.status(500).json({
         statusCode: 500,
         message: "Unable to remove attachment",
+      });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Issue 4 — Public Comments (BR-04)
+// Shared endpoint for Requester (owner only), IT Staff, and Administrator —
+// see docs/lab-03/api-spec.md §Comments for why this is one route rather
+// than a duplicate /api/staff/... path. Internal Notes are a deliberately
+// separate resource (a later issue) since their visibility rule differs.
+// ---------------------------------------------------------------------------
+async function loadCommentableTicket(
+  req: Request,
+  res: Response,
+  ticketId: number
+) {
+  if (!Number.isInteger(ticketId) || ticketId <= 0) {
+    res.status(400).json({ error: "Invalid ticket id", code: "invalid_input" });
+    return null;
+  }
+
+  const ticket = await getPrisma().ticket.findUnique({
+    where: { id: ticketId },
+  });
+
+  const user = req.currentUser!;
+  const isOwner = ticket?.requesterId === user.id;
+  const isStaffOrAdmin =
+    user.role === "IT_STAFF" || user.role === "ADMINISTRATOR";
+
+  // A ticket that doesn't exist and a ticket the caller can't see look
+  // identical from the outside — never reveal which one occurred.
+  if (!ticket || (user.role === "REQUESTER" && !isOwner)) {
+    res.status(404).json({ error: "Ticket not found", code: "not_found" });
+    return null;
+  }
+
+  if (!isOwner && !isStaffOrAdmin) {
+    res.status(403).json({
+      error: "You do not have permission to access this ticket",
+      code: "forbidden",
+    });
+    return null;
+  }
+
+  return ticket;
+}
+
+app.get(
+  "/api/tickets/:id/comments",
+  requireAuth,
+  requirePasswordChangeComplete,
+  async (req: Request, res: Response) => {
+    try {
+      const ticketId = Number(req.params.id);
+      const ticket = await loadCommentableTicket(req, res, ticketId);
+      if (!ticket) return;
+
+      const comments = await getPrisma().ticketComment.findMany({
+        where: { ticketId },
+        orderBy: { createdAt: "asc" },
+        include: { author: { select: { id: true, name: true, role: true } } },
+      });
+
+      return res.status(200).json(
+        comments.map((comment) => ({
+          id: comment.id,
+          content: comment.content,
+          createdAt: comment.createdAt,
+          author: comment.author,
+        }))
+      );
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        error: "Unable to retrieve comments",
+        code: "server_error",
+      });
+    }
+  }
+);
+
+app.post(
+  "/api/tickets/:id/comments",
+  requireAuth,
+  requirePasswordChangeComplete,
+  async (req: Request, res: Response) => {
+    try {
+      const ticketId = Number(req.params.id);
+      const ticket = await loadCommentableTicket(req, res, ticketId);
+      if (!ticket) return;
+
+      const { content } = req.body ?? {};
+      const trimmed = typeof content === "string" ? content.trim() : "";
+
+      // BR-09: empty/whitespace-only content rejected; capped at 2000 chars.
+      if (trimmed === "") {
+        return res.status(400).json({
+          error: "Comment content is required",
+          code: "invalid_input",
+        });
+      }
+
+      if (trimmed.length > 2000) {
+        return res.status(400).json({
+          error: "Comment must be 2000 characters or fewer",
+          code: "invalid_input",
+        });
+      }
+
+      const comment = await getPrisma().ticketComment.create({
+        data: {
+          ticketId,
+          authorId: req.currentUser!.id,
+          content: trimmed,
+        },
+        include: { author: { select: { id: true, name: true, role: true } } },
+      });
+
+      return res.status(201).json({
+        id: comment.id,
+        content: comment.content,
+        createdAt: comment.createdAt,
+        author: comment.author,
+      });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        error: "Unable to post comment",
+        code: "server_error",
+      });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Issue 4 — "Problem Appears Resolved" (FR-08/BR-05)
+// Owning Requester only. Never changes currentStatus — formally
+// resolving/closing a Ticket remains IT Staff/Administrator territory.
+// ---------------------------------------------------------------------------
+app.patch(
+  "/api/tickets/:id/resolution-flag",
+  ...requireRequester,
+  async (req: Request, res: Response) => {
+    try {
+      const ticketId = Number(req.params.id);
+
+      if (!Number.isInteger(ticketId) || ticketId <= 0) {
+        return res.status(400).json({
+          error: "Invalid ticket id",
+          code: "invalid_input",
+        });
+      }
+
+      const { problemAppearsResolved, currentStatus } = req.body ?? {};
+
+      // BR-05: a Requester may only ever set the flag, never the status —
+      // reject outright rather than silently ignoring the extra field.
+      if (currentStatus !== undefined) {
+        return res.status(403).json({
+          error: "Requesters cannot change ticket status directly",
+          code: "forbidden",
+        });
+      }
+
+      if (typeof problemAppearsResolved !== "boolean") {
+        return res.status(400).json({
+          error: "problemAppearsResolved must be true or false",
+          code: "invalid_input",
+        });
+      }
+
+      const ticket = await getPrisma().ticket.findFirst({
+        where: { id: ticketId, requesterId: req.currentUser!.id },
+      });
+
+      if (!ticket) {
+        return res.status(404).json({
+          error: "Ticket not found",
+          code: "not_found",
+        });
+      }
+
+      const updated = await getPrisma().ticket.update({
+        where: { id: ticketId },
+        data: { problemAppearsResolved },
+      });
+
+      return res.status(200).json({
+        id: updated.id,
+        problemAppearsResolved: updated.problemAppearsResolved,
+        currentStatus: updated.currentStatus,
+      });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        error: "Unable to update ticket",
+        code: "server_error",
       });
     }
   }

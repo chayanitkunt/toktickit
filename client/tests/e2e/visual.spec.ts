@@ -2,11 +2,12 @@ import { test, expect, type Page } from "@playwright/test";
 import { fileURLToPath } from "url";
 import path from "path";
 import fs from "fs";
+import { loginAsRequester, REQUESTER_A } from "./helpers/auth";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const screenshotsRoot = path.resolve(
   __dirname,
-  "../../../artifacts/lab-02/screenshots"
+  "../../../artifacts/lab-03/screenshots"
 );
 
 function screenshotPath(
@@ -33,47 +34,24 @@ async function waitForSpinnerToClear(page: Page) {
   });
 }
 
-async function selectRequester(page: Page, label: string) {
-  await page.goto("/");
-
-  const requesterSelect = page.locator("#requester-select");
-  await expect(requesterSelect).toBeVisible();
-
-  await requesterSelect.selectOption({ label });
-
-  const ticketsLoaded = page.waitForResponse(
-    (response) =>
-      response.url().includes("/api/tickets") &&
-      response.request().method() === "GET"
-  );
-
-  await page.getByRole("button", { name: /Continue/i }).click();
-
-  await ticketsLoaded;
-  await waitForSpinnerToClear(page);
-}
-
 test.describe("Visual QA screenshots", () => {
-  test("Development Requester selection screen", async ({
-    page,
-  }, testInfo) => {
+  // Issue 4: the Development Requester selector is gone, so the entry-point
+  // screenshot is now the real Login screen instead.
+  test("Login screen", async ({ page }, testInfo) => {
     await page.goto("/");
 
-    const requesterSelect = page.locator("#requester-select");
-    await expect(requesterSelect).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: /sign in to your account/i })
+    ).toBeVisible();
 
     await page.screenshot({
-      path: screenshotPath(
-        "requester-selection",
-        "initial",
-        testInfo.project.name
-      ),
+      path: screenshotPath("authentication", "login", testInfo.project.name),
       fullPage: true,
     });
   });
 
   test("My Tickets screen", async ({ page }, testInfo) => {
-    await selectRequester(page, "Alice Johnson");
+    await loginAsRequester(page, REQUESTER_A.email);
 
     await expect(
       page.getByRole("heading", { name: "My Tickets", exact: true })
@@ -90,7 +68,7 @@ test.describe("Visual QA screenshots", () => {
   test("Create Ticket screen — empty and validation-error states", async ({
     page,
   }, testInfo) => {
-    await selectRequester(page, "Alice Johnson");
+    await loginAsRequester(page, REQUESTER_A.email);
 
     await page.getByRole("main").getByRole("button", {
       name: "+ Create Ticket",
@@ -129,25 +107,54 @@ test.describe("Visual QA screenshots", () => {
   });
 
   test("Requester Ticket Detail screen", async ({ page }, testInfo) => {
-    await selectRequester(page, "Alice Johnson");
+    await loginAsRequester(page, REQUESTER_A.email);
 
-    await waitForSpinnerToClear(page);
+    // Issue 4: the old version of this test hard-coded a seeded ticket
+    // number (TKT-2026-000001) owned by Alice Johnson. Alice is a
+    // password-gated demo account now, and Requester A (the automation
+    // account used for this screenshot) doesn't own that ticket, so this
+    // creates and opens its own ticket instead.
+    const summary = `Visual QA Ticket Detail ${Date.now()}`;
 
-    // กรอกค้นหา Ticket ID เพื่อดึงตั๋วใบนี้มาแสดงในหน้าปัจจุบันเสมอ ไม่ว่าจะอยู่หน้าไหน
-    await page
-      .getByPlaceholder("Search by ticket number or summary...")
-      .fill("TKT-2026-000001");
-
-    const ticket = page
-      .getByText("TKT-2026-000001", { exact: true })
-      .filter({ visible: true })
-      .first();
-
-    await expect(ticket).toBeVisible();
-    await ticket.click();
+    await page.getByRole("main").getByRole("button", {
+      name: "+ Create Ticket",
+    }).click();
 
     await expect(
-      page.getByRole("heading", { name: /TKT-2026-000001/ })
+      page.getByRole("heading", { name: "Create Ticket" })
+    ).toBeVisible();
+
+    const selects = page.locator("select");
+    await selects.nth(0).selectOption({ label: "Hardware" });
+    await selects.nth(1).selectOption({ label: "Corporate Laptop" });
+    await selects.nth(2).selectOption("HIGH");
+
+    await page.locator('input[type="text"]').fill(summary);
+    await page
+      .locator("textarea")
+      .fill(
+        "This ticket is created by the visual QA spec to screenshot the Ticket Detail screen."
+      );
+
+    await page.getByRole("button", { name: "Create Ticket", exact: true }).click();
+
+    await expect(
+      page.getByRole("heading", { name: "Ticket Created" })
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: "Go to My Tickets" }).click();
+    await waitForSpinnerToClear(page);
+
+    await page
+      .getByPlaceholder("Search by ticket number or summary...")
+      .fill(summary);
+
+    const row = page.locator("tbody tr").filter({ hasText: summary });
+    await expect(row).toHaveCount(1);
+    await row.getByRole("button").click();
+
+    await expect(
+      page.getByRole("heading", { name: /^TKT-\d{4}-\d{6}$/ })
     ).toBeVisible({ timeout: 10_000 });
 
     await waitForSpinnerToClear(page);
@@ -158,3 +165,4 @@ test.describe("Visual QA screenshots", () => {
     });
   });
 });
+
