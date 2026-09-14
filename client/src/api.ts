@@ -898,3 +898,152 @@ export async function setProblemAppearsResolved(
     currentStatus: CurrentStatus;
   };
 }
+
+// ---------------------------------------------------------------------------
+// Issue 7 — Administrator User Management (FR-15..FR-19, BR-13..BR-16)
+// docs/lab-03/api-spec.md §Administrator User Management.
+// ---------------------------------------------------------------------------
+
+export interface AdminUser {
+  id: number;
+  name: string;
+  email: string;
+  role: UserRole;
+  isActive: boolean;
+  mustChangePassword: boolean;
+  createdAt: string;
+}
+
+export interface AdminUserListResponse {
+  data: AdminUser[];
+  meta: TicketListMeta;
+}
+
+export interface AdminUserListParams {
+  q?: string;
+  role?: UserRole;
+  page?: number;
+  pageSize?: number;
+}
+
+export async function getAdminUsers(
+  params: AdminUserListParams
+): Promise<AdminUserListResponse> {
+  const query = new URLSearchParams();
+
+  if (params.q) {
+    query.set("q", params.q);
+  }
+
+  if (params.role) {
+    query.set("role", params.role);
+  }
+
+  query.set("page", String(params.page ?? 1));
+  query.set("pageSize", String(params.pageSize ?? 50));
+
+  const response = await fetch(`${API_URL}/api/admin/users?${query.toString()}`, {
+    credentials: "include",
+  });
+
+  const result = await readJsonSafely(response);
+
+  if (!response.ok) {
+    throw new Error(
+      (result as unknown as ApiErrorBody)?.error ?? "Unable to retrieve users"
+    );
+  }
+
+  return result as unknown as AdminUserListResponse;
+}
+
+export interface CreateAdminUserData {
+  name: string;
+  email: string;
+  role: UserRole;
+  isActive: boolean;
+  initialPassword: string;
+}
+
+export async function createAdminUser(
+  data: CreateAdminUserData
+): Promise<AdminUser> {
+  const response = await fetch(`${API_URL}/api/admin/users`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+  const result = await readJsonSafely(response);
+
+  if (!response.ok) {
+    const message =
+      (result as unknown as ApiErrorBody)?.details &&
+      (result as unknown as ApiErrorBody).details!.length > 0
+        ? (result as unknown as ApiErrorBody).details!.join("\n")
+        : (result as unknown as ApiErrorBody)?.error ?? "Unable to create user";
+
+    throw new Error(message);
+  }
+
+  return result as unknown as AdminUser;
+}
+
+export interface UpdateAdminUserData {
+  name?: string;
+  email?: string;
+  role?: UserRole;
+  isActive?: boolean;
+}
+
+export async function updateAdminUser(
+  userId: number,
+  data: UpdateAdminUserData
+): Promise<AdminUser> {
+  const response = await fetch(`${API_URL}/api/admin/users/${userId}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+  const result = await readJsonSafely(response);
+
+  if (!response.ok) {
+    throw new Error(
+      (result as unknown as ApiErrorBody)?.error ?? "Unable to update user"
+    );
+  }
+
+  return result as unknown as AdminUser;
+}
+
+export async function resetAdminUserPassword(
+  userId: number,
+  newInitialPassword: string
+): Promise<AdminUser> {
+  const response = await fetch(
+    `${API_URL}/api/admin/users/${userId}/reset-password`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ newInitialPassword }),
+    }
+  );
+
+  const result = await readJsonSafely(response);
+
+  if (!response.ok) {
+    const message =
+      (result as unknown as ApiErrorBody)?.details &&
+      (result as unknown as ApiErrorBody).details!.length > 0
+        ? (result as unknown as ApiErrorBody).details!.join("\n")
+        : (result as unknown as ApiErrorBody)?.error ?? "Unable to reset password";
+
+    throw new Error(message);
+  }
+
+  return result as unknown as AdminUser;
+}

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../AuthContext";
-
-const ZEN_GREEN = "#006B3C";
+import { AlertIcon, AuthHeader, EyeIcon, ZEN_GREEN } from "./AuthVisuals";
 
 export default function Login() {
   const { login } = useAuth();
@@ -53,119 +52,116 @@ export default function Login() {
   }
 
   return (
-    <div
-      className="d-flex align-items-center justify-content-center"
-      style={{ minHeight: "100vh", backgroundColor: "#F5F7F6" }}
-    >
+    <div style={{ minHeight: "100vh", backgroundColor: "#F5F7F6" }}>
+      <AuthHeader />
+
       <div
-        className="card shadow-sm border-0 p-4 p-md-5 w-100"
-        style={{ maxWidth: "420px" }}
+        className="d-flex align-items-center justify-content-center px-3"
+        style={{ minHeight: "calc(100vh - 64px)" }}
       >
-        <div className="d-flex align-items-center gap-2 mb-4">
-          <span style={{ fontSize: "1.5rem", color: ZEN_GREEN }}>◷</span>
-          <h1
-            className="fw-bold mb-0"
-            style={{ fontSize: "1.25rem", color: "#1A2E26" }}
-          >
-            TokTickIT
-          </h1>
-        </div>
+        <div
+          className="card shadow-sm border-0 p-4 p-md-5 w-100 my-4"
+          style={{ maxWidth: "420px" }}
+        >
+          <h2 className="h5 fw-semibold mb-3" style={{ color: "#1A2E26" }}>
+            Sign in to your account
+          </h2>
 
-        <h2 className="h5 fw-semibold mb-3" style={{ color: "#1A2E26" }}>
-          Sign in to your account
-        </h2>
-
-        <form onSubmit={handleSubmit} noValidate>
-          <div className="mb-3">
-            <label htmlFor="login-email" className="form-label">
-              Email address
-            </label>
-            <input
-              id="login-email"
-              type="email"
-              autoComplete="username"
-              className={`form-control ${
-                fieldErrors.email ? "is-invalid" : ""
-              }`}
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              disabled={submitting}
-              placeholder="you@tiktockit.com"
-            />
-            {fieldErrors.email && (
-              <div className="invalid-feedback">{fieldErrors.email}</div>
-            )}
-          </div>
-
-          <div className="mb-3">
-            <label htmlFor="login-password" className="form-label">
-              Password
-            </label>
-            <div className="input-group">
+          <form onSubmit={handleSubmit} noValidate>
+            <div className="mb-3">
+              <label htmlFor="login-email" className="form-label">
+                Email address
+              </label>
               <input
-                id="login-password"
-                type={showPassword ? "text" : "password"}
-                autoComplete="current-password"
+                id="login-email"
+                type="email"
+                autoComplete="username"
                 className={`form-control ${
-                  fieldErrors.password ? "is-invalid" : ""
+                  fieldErrors.email ? "is-invalid" : ""
                 }`}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
                 disabled={submitting}
+                placeholder="you@tiktockit.com"
               />
-              <button
-                type="button"
-                className="btn btn-outline-secondary"
-                onClick={() => setShowPassword((value) => !value)}
-                tabIndex={-1}
-                aria-label={
-                  showPassword ? "Hide password" : "Show password"
-                }
-              >
-                {showPassword ? "Hide" : "Show"}
-              </button>
-              {fieldErrors.password && (
-                <div className="invalid-feedback">
-                  {fieldErrors.password}
-                </div>
+              {fieldErrors.email && (
+                <div className="invalid-feedback">{fieldErrors.email}</div>
               )}
             </div>
-          </div>
 
-          {error && (
-            <div className="alert alert-danger py-2" role="alert">
-              {error}
+            <div className="mb-3">
+              <label htmlFor="login-password" className="form-label">
+                Password
+              </label>
+              <div className="input-group">
+                <input
+                  id="login-password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  className={`form-control ${
+                    fieldErrors.password ? "is-invalid" : ""
+                  }`}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  disabled={submitting}
+                />
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary d-flex align-items-center"
+                  onClick={() => setShowPassword((value) => !value)}
+                  tabIndex={-1}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  <EyeIcon crossedOut={showPassword} />
+                </button>
+                {fieldErrors.password && (
+                  <div className="invalid-feedback">
+                    {fieldErrors.password}
+                  </div>
+                )}
+              </div>
             </div>
-          )}
 
-          <button
-            type="submit"
-            className="btn w-100 text-white fw-semibold"
-            style={{ backgroundColor: ZEN_GREEN }}
-            disabled={submitting}
-          >
-            {submitting ? "Signing in…" : "Sign In"}
-          </button>
-        </form>
+            {error && (
+              <div
+                className="alert alert-danger py-2 d-flex align-items-start gap-2"
+                role="alert"
+              >
+                <AlertIcon />
+                <span>{error}</span>
+              </div>
+            )}
 
-        <div className="text-center mt-3">
-          <button
-            type="button"
-            className="btn btn-link btn-sm p-0"
-            style={{ color: ZEN_GREEN }}
-            onClick={() => setShowForgotPasswordNote(true)}
-          >
-            Forgot your password?
-          </button>
+            <button
+              type="submit"
+              className="btn w-100 text-white fw-semibold"
+              style={{ backgroundColor: ZEN_GREEN }}
+              disabled={submitting}
+            >
+              {submitting ? "Signing in…" : "Sign In"}
+            </button>
+          </form>
 
-          {showForgotPasswordNote && (
-            <p className="text-muted small mt-2 mb-0">
-              Password reset isn't self-service yet — please ask your
-              Administrator to set a new initial password for your account.
-            </p>
-          )}
+          <div className="text-center mt-3">
+            <button
+              type="button"
+              className="btn btn-link btn-sm p-0"
+              style={{ color: ZEN_GREEN }}
+              onClick={() => setShowForgotPasswordNote(true)}
+            >
+              Forgot your password?
+            </button>
+
+            {showForgotPasswordNote && (
+              <p className="text-muted small mt-2 mb-0">
+                Password reset isn't self-service yet — please ask your
+                Administrator to set a new initial password for your account.
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 }
+

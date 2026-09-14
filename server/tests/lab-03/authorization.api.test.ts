@@ -288,3 +288,50 @@ describe('"Problem Appears Resolved" authorization (FR-08/BR-05)', () => {
     expect(adminResponse.status).toBe(403);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Issue 7 — GitHub admin user management: non-Administrator access to
+// /api/admin/... (AC-23/API-20). Functional coverage of the admin routes
+// themselves lives in tests/lab-03/users-admin.api.test.ts, per tests.md.
+// ---------------------------------------------------------------------------
+describe("Authorization — /api/admin/users is Administrator-only", () => {
+  it("rejects a Requester with 403", async () => {
+    const requester = await loginAsRequesterA();
+    const response = await requester.get("/api/admin/users");
+    expect(response.status).toBe(403);
+  });
+
+  it("rejects IT Staff with 403", async () => {
+    const staff = await loginAsItStaff();
+    const response = await staff.get("/api/admin/users");
+    expect(response.status).toBe(403);
+  });
+
+  it("rejects an unauthenticated caller with 401", async () => {
+    const response = await request(app).get("/api/admin/users");
+    expect(response.status).toBe(401);
+  });
+
+  it("rejects a Requester from creating, editing, or resetting a password with 403", async () => {
+    const requester = await loginAsRequesterA();
+
+    const createResponse = await requester.post("/api/admin/users").send({
+      name: "Should Not Be Created",
+      email: "should-not-exist@tiktockit.com",
+      role: "REQUESTER",
+      isActive: true,
+      initialPassword: "Initial123!",
+    });
+    expect(createResponse.status).toBe(403);
+
+    const patchResponse = await requester
+      .patch("/api/admin/users/1")
+      .send({ name: "Should Not Change" });
+    expect(patchResponse.status).toBe(403);
+
+    const resetResponse = await requester
+      .post("/api/admin/users/1/reset-password")
+      .send({ newInitialPassword: "ShouldNotApply123!" });
+    expect(resetResponse.status).toBe(403);
+  });
+});

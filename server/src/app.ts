@@ -16,7 +16,7 @@ import {
   requireRole,
 } from "./auth.js";
 import { isValidStatusTransition } from "./ticketStatusTransitions.js";
-import type { CurrentStatus as PrismaCurrentStatus } from "@prisma/client";
+import type { CurrentStatus as PrismaCurrentStatus, Role as PrismaRole } from "@prisma/client";
 
 
 // getPrisma() is your lazy database handle. Call it INSIDE a route when you
@@ -362,6 +362,29 @@ const requireStaff = [
   requirePasswordChangeComplete,
   requireRole("IT_STAFF", "ADMINISTRATOR"),
 ];
+
+// ---------------------------------------------------------------------------
+// Issue 7 — Administrator User Management
+// requireAdmin gates every /api/admin/... route to Administrator only
+// (specification.md §5.2 Authorization Matrix — "User Management" row).
+// ---------------------------------------------------------------------------
+const requireAdmin = [
+  requireAuth,
+  requirePasswordChangeComplete,
+  requireRole("ADMINISTRATOR"),
+];
+
+const ALLOWED_ROLES = ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"];
+
+const ADMIN_USER_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  isActive: true,
+  mustChangePassword: true,
+  createdAt: true,
+} as const;
 
 app.post(
   "/api/tickets",
@@ -1891,6 +1914,345 @@ app.patch(
         error: "Unable to update ticket",
         code: "server_error",
       });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Issue 7 — Administrator User Management (FR-15..FR-19, BR-13..BR-16)
+// docs/lab-03/api-spec.md §Administrator User Management.
+// ---------------------------------------------------------------------------
+
+// GET /api/admin/users — FR-15/AC-17. Search by partial name/email
+// (case-insensitive), optional role filter. Pagination is accepted (per
+// api-spec.md) but the handout explicitly does not require it in the UI,
+// so page/pageSize default generously rather than erroring on omission.
+app.get("/api/admin/users", ...requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { q, role, page = "1", pageSize = "50" } = req.query;
+
+    const parsedPage = Number(page);
+    const parsedPageSize = Number(pageSize);
+
+    if (!Number.isInteger(parsedPage) || parsedPage < 1) {
+      return res
+        .status(400)
+        .json({ error: "page must be a positive integer", code: "invalid_input" });
+    }
+
+    if (
+      !Number.isInteger(parsedPageSize) ||
+      parsedPageSize < 1 ||
+      parsedPageSize > 100
+    ) {
+      return res.status(400).json({
+        error: "pageSize must be between 1 and 100",
+        code: "invalid_input",
+      });
+    }
+
+    if (role !== undefined && !ALLOWED_ROLES.includes(role as string)) {
+      return res.status(400).json({ error: "Invalid role", code: "invalid_input" });
+    }
+
+    const where: any = {};
+
+    if (typeof q === "string" && q.trim() !== "") {
+      const searchText = q.trim();
+      where.OR = [
+        { name: { contains: searchText, mode: "insensitive" } },
+        { email: { contains: searchText, mode: "insensitive" } },
+      ];
+    }
+
+    if (role !== undefined) {
+      where.role = role;
+    }
+
+    const skip = (parsedPage - 1) * parsedPageSize;
+
+    const [users, total] = await Promise.all([
+      getPrisma().user.findMany({
+        where,
+        skip,
+        take: parsedPageSize,
+        orderBy: { name: "asc" },
+        select: ADMIN_USER_SELECT,
+      }),
+      getPrisma().user.count({ where }),
+    ]);
+
+    return res.status(200).json({
+      data: users,
+      meta: {
+        total,
+        page: parsedPage,
+        pageSize: parsedPageSize,
+        totalPages: total === 0 ? 0 : Math.ceil(total / parsedPageSize),
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ error: "Unable to retrieve users", code: "server_error" });
+  }
+});
+
+// POST /api/admin/users — FR-16/AC-18/BR-13. Creates a user with one role
+// and an initial password; always mustChangePassword=true (BR-02 forces
+// the new account through the mandatory first-login flow).
+app.post("/api/admin/users", ...requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { name, email, role, isActive, initialPassword } = req.body ?? {};
+
+    const trimmedName = typeof name === "string" ? name.trim() : "";
+    const trimmedEmail = typeof email === "string" ? email.trim() : "";
+
+    if (trimmedName === "") {
+      return res
+        .status(400)
+        .json({ error: "Name is required", code: "invalid_input" });
+    }
+
+    // Deliberately simple format check — full RFC 5322 validation is out of
+    // scope for this lab; this just rejects obviously malformed input.
+    if (trimmedEmail === "" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      return res
+        .status(400)
+        .json({ error: "A valid email address is required", code: "invalid_input" });
+    }
+
+    if (typeof role !== "string" || !ALLOWED_ROLES.includes(role)) {
+      return res
+        .status(400)
+        .json({ error: "role must be REQUESTER, IT_STAFF, or ADMINISTRATOR", code: "invalid_input" });
+    }
+
+    if (typeof isActive !== "boolean") {
+      return res
+        .status(400)
+        .json({ error: "isActive must be true or false", code: "invalid_input" });
+    }
+
+    const policy = validatePasswordPolicy(initialPassword);
+    if (!policy.valid) {
+      return res.status(400).json({
+        error: "Initial password does not meet the password requirements",
+        code: "weak_password",
+        details: policy.errors,
+      });
+    }
+
+    // BR-13: email uniqueness is case-insensitive.
+    const existing = await getPrisma().user.findFirst({
+      where: { email: { equals: trimmedEmail, mode: "insensitive" } },
+    });
+
+    if (existing) {
+      return res
+        .status(409)
+        .json({ error: "A user with this email already exists", code: "conflict" });
+    }
+
+    const passwordHash = await hashPassword(initialPassword);
+
+    const created = await getPrisma().user.create({
+      data: {
+        name: trimmedName,
+        email: trimmedEmail,
+        role: role as PrismaRole,
+        isActive,
+        passwordHash,
+        mustChangePassword: true,
+      },
+      select: ADMIN_USER_SELECT,
+    });
+
+    return res.status(201).json(created);
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ error: "Unable to create user", code: "server_error" });
+  }
+});
+
+// PATCH /api/admin/users/:id — FR-17/AC-19/BR-14/BR-15. Partial update of
+// name/email/role/isActive. Never touches password fields (see the
+// dedicated reset-password route below).
+app.patch(
+  "/api/admin/users/:id",
+  ...requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const userId = Number(req.params.id);
+
+      if (!Number.isInteger(userId) || userId <= 0) {
+        return res
+          .status(400)
+          .json({ error: "Invalid user id", code: "invalid_input" });
+      }
+
+      const target = await getPrisma().user.findUnique({ where: { id: userId } });
+
+      if (!target) {
+        return res.status(404).json({ error: "User not found", code: "not_found" });
+      }
+
+      const { name, email, role, isActive } = req.body ?? {};
+      const data: any = {};
+
+      if (name !== undefined) {
+        const trimmedName = typeof name === "string" ? name.trim() : "";
+        if (trimmedName === "") {
+          return res
+            .status(400)
+            .json({ error: "Name cannot be empty", code: "invalid_input" });
+        }
+        data.name = trimmedName;
+      }
+
+      if (email !== undefined) {
+        const trimmedEmail = typeof email === "string" ? email.trim() : "";
+        if (trimmedEmail === "" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+          return res.status(400).json({
+            error: "A valid email address is required",
+            code: "invalid_input",
+          });
+        }
+
+        // BR-13: case-insensitive uniqueness, excluding this user.
+        const existing = await getPrisma().user.findFirst({
+          where: {
+            email: { equals: trimmedEmail, mode: "insensitive" },
+            NOT: { id: userId },
+          },
+        });
+
+        if (existing) {
+          return res.status(409).json({
+            error: "A user with this email already exists",
+            code: "conflict",
+          });
+        }
+
+        data.email = trimmedEmail;
+      }
+
+      if (role !== undefined) {
+        if (typeof role !== "string" || !ALLOWED_ROLES.includes(role)) {
+          return res.status(400).json({
+            error: "role must be REQUESTER, IT_STAFF, or ADMINISTRATOR",
+            code: "invalid_input",
+          });
+        }
+        data.role = role as PrismaRole;
+      }
+
+      if (isActive !== undefined) {
+        if (typeof isActive !== "boolean") {
+          return res
+            .status(400)
+            .json({ error: "isActive must be true or false", code: "invalid_input" });
+        }
+        data.isActive = isActive;
+      }
+
+      // BR-14: an Administrator cannot deactivate their own account.
+      const isSelf = target.id === req.currentUser!.id;
+      if (isSelf && data.isActive === false) {
+        return res.status(409).json({
+          error: "You cannot deactivate your own account",
+          code: "self_deactivation",
+        });
+      }
+
+      // BR-15: the system must always have at least one active
+      // Administrator. Block the last active Admin from being deactivated
+      // OR having their role changed away from Administrator.
+      const wasActiveAdmin =
+        target.role === "ADMINISTRATOR" && target.isActive;
+      const willLoseAdminStatus =
+        (data.role !== undefined && data.role !== "ADMINISTRATOR") ||
+        data.isActive === false;
+
+      if (wasActiveAdmin && willLoseAdminStatus) {
+        const activeAdminCount = await getPrisma().user.count({
+          where: { role: "ADMINISTRATOR", isActive: true },
+        });
+
+        if (activeAdminCount <= 1) {
+          return res.status(409).json({
+            error: "Cannot remove the last active Administrator",
+            code: "last_admin",
+          });
+        }
+      }
+
+      const updated = await getPrisma().user.update({
+        where: { id: userId },
+        data,
+        select: ADMIN_USER_SELECT,
+      });
+
+      return res.status(200).json(updated);
+    } catch (error) {
+      console.error(error);
+      return res
+        .status(500)
+        .json({ error: "Unable to update user", code: "server_error" });
+    }
+  }
+);
+
+// POST /api/admin/users/:id/reset-password — FR-18/AC-20. Sets a new
+// initial password and forces mustChangePassword=true; touches no other
+// field on the account.
+app.post(
+  "/api/admin/users/:id/reset-password",
+  ...requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const userId = Number(req.params.id);
+
+      if (!Number.isInteger(userId) || userId <= 0) {
+        return res
+          .status(400)
+          .json({ error: "Invalid user id", code: "invalid_input" });
+      }
+
+      const target = await getPrisma().user.findUnique({ where: { id: userId } });
+
+      if (!target) {
+        return res.status(404).json({ error: "User not found", code: "not_found" });
+      }
+
+      const { newInitialPassword } = req.body ?? {};
+      const policy = validatePasswordPolicy(newInitialPassword);
+
+      if (!policy.valid) {
+        return res.status(400).json({
+          error: "New initial password does not meet the password requirements",
+          code: "weak_password",
+          details: policy.errors,
+        });
+      }
+
+      const passwordHash = await hashPassword(newInitialPassword);
+
+      const updated = await getPrisma().user.update({
+        where: { id: userId },
+        data: { passwordHash, mustChangePassword: true },
+        select: ADMIN_USER_SELECT,
+      });
+
+      return res.status(200).json(updated);
+    } catch (error) {
+      console.error(error);
+      return res
+        .status(500)
+        .json({ error: "Unable to reset password", code: "server_error" });
     }
   }
 );

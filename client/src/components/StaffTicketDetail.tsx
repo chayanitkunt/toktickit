@@ -471,20 +471,20 @@ export default function StaffTicketDetail({
             style={{ border: "1px solid #E0E6E2", borderRadius: "10px" }}
           >
             <div className="card-body p-3 p-md-4">
-              <div className="row g-3 mb-3">
-                <div className="col-12 col-md-4">
+              <div className="row g-2 g-md-3 mb-3">
+                <div className="col-6 col-md-4">
                   <div className="small fw-semibold" style={{ color: "#5A6E65" }}>
                     Ticket No.
                   </div>
                   <div style={{ color: "#1A2E26" }}>{ticket.ticketNumber}</div>
                 </div>
-                <div className="col-12 col-md-4">
+                <div className="col-6 col-md-4">
                   <div className="small fw-semibold" style={{ color: "#5A6E65" }}>
                     Category
                   </div>
                   <div style={{ color: "#1A2E26" }}>{ticket.category.name}</div>
                 </div>
-                <div className="col-12 col-md-4">
+                <div className="col-6 col-md-4">
                   <div className="small fw-semibold" style={{ color: "#5A6E65" }}>
                     Related System
                   </div>
@@ -493,13 +493,13 @@ export default function StaffTicketDetail({
                   </div>
                 </div>
 
-                <div className="col-12 col-md-4">
+                <div className="col-6 col-md-4">
                   <div className="small fw-semibold" style={{ color: "#5A6E65" }}>
                     Requester
                   </div>
                   <div style={{ color: "#1A2E26" }}>{ticket.requester.name}</div>
                 </div>
-                <div className="col-12 col-md-4">
+                <div className="col-6 col-md-4">
                   <div className="small fw-semibold" style={{ color: "#5A6E65" }}>
                     Requested Priority
                   </div>
@@ -507,7 +507,7 @@ export default function StaffTicketDetail({
                     <PriorityBadge priority={ticket.requestedPriority} />
                   </div>
                 </div>
-                <div className="col-12 col-md-4">
+                <div className="col-6 col-md-4">
                   <div className="small fw-semibold" style={{ color: "#5A6E65" }}>
                     Last Updated
                   </div>
