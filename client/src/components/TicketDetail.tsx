@@ -95,13 +95,12 @@ function ReadOnlyField({
         {label}
       </div>
       <div
-        className="px-2 px-md-3 py-1 py-md-2"
+        className="zg-readonly-value px-2 px-md-3 py-1 py-md-2"
         style={{
           backgroundColor: "#F5F7F6",
           border: "1px solid #E0E6E2",
           borderRadius: "8px",
           color: "#1A2E26",
-          minHeight: "38px",
           display: "flex",
           alignItems: "center",
           overflow: "hidden",
@@ -345,11 +344,11 @@ export default function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
 
       {/* Ticket Header */}
       <div
-        className="card mb-4"
+        className="card mb-2 mb-md-4"
         style={{ border: "1px solid #E0E6E2", borderRadius: "10px" }}
       >
-        <div className="card-body p-4">
-          <div className="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <div className="card-body p-3 p-md-4">
+          <div className="d-flex flex-wrap justify-content-between align-items-center mb-3 mb-md-4 gap-2">
             <h1
               className="h3 fw-bold mb-0"
               style={{ color: "#006B3C" }}
@@ -415,13 +414,12 @@ export default function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
               Description
             </div>
             <div
-              className="px-3 py-2"
+              className="zg-description-box px-3 py-2"
               style={{
                 backgroundColor: "#F5F7F6",
                 border: "1px solid #E0E6E2",
                 borderRadius: "8px",
                 color: "#1A2E26",
-                minHeight: "80px",
                 whiteSpace: "pre-wrap",
               }}
             >
@@ -473,10 +471,10 @@ export default function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
 
       {/* Attachments Section */}
       <div
-        className="card mb-4"
+        className="card mb-2 mb-md-4"
         style={{ border: "1px solid #E0E6E2", borderRadius: "10px" }}
       >
-        <div className="card-body p-4">
+        <div className="card-body p-3 p-md-4">
           <h2 className="h5 fw-bold mb-3" style={{ color: "#1A2E26" }}>
             Attachments ({activeAttachments.length})
           </h2>
@@ -617,7 +615,7 @@ export default function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
         className="card"
         style={{ border: "1px solid #E0E6E2", borderRadius: "10px" }}
       >
-        <div className="card-body p-4">
+        <div className="card-body p-3 p-md-4">
           <h2 className="h5 fw-bold mb-3" style={{ color: "#1A2E26" }}>
             Public Comments ({comments.length})
           </h2>

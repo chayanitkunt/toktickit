@@ -13,6 +13,12 @@ interface MyTicketsProps {
   onOpenTicket?: (ticketId: number) => void;
 }
 
+const MOBILE_BREAKPOINT = 767.98;
+
+function getPageSize() {
+  return window.innerWidth <= MOBILE_BREAKPOINT ? 2 : 10;
+}
+
 export default function MyTickets({
   onCreateTicket,
   onOpenTicket,
@@ -21,7 +27,7 @@ export default function MyTickets({
   const [meta, setMeta] = useState<TicketListMeta>({
     total: 0,
     page: 1,
-    pageSize: 10,
+    pageSize: getPageSize(),
     totalPages: 0,
   });
 
@@ -38,8 +44,33 @@ export default function MyTickets({
 
   const [categories, setCategories] = useState<Category[]>([]);
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Adjust page size for mobile/desktop
+useEffect(() => {
+  function handleResize() {
+    const newPageSize = getPageSize();
+
+    setMeta((previous) => {
+      if (previous.pageSize === newPageSize) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        page: 1,
+        pageSize: newPageSize,
+      };
+    });
+  }
+
+  window.addEventListener("resize", handleResize);
+
+  return () => {
+    window.removeEventListener("resize", handleResize);
+  };
+}, []);
 
   // Load categories
   useEffect(() => {
