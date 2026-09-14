@@ -506,6 +506,135 @@ export async function downloadAttachment(
 }
 
 // ---------------------------------------------------------
+// Issue 5 — IT Staff Ticket Queue (GitHub Issue #32)
+// ---------------------------------------------------------
+
+export interface StaffTicketListItem {
+  id: number;
+  ticketNumber: string;
+  createdAt: string;
+  summary: string;
+  categoryName: string;
+  requestedPriority: RequestedPriority;
+  itPriority: RequestedPriority;
+  currentStatus: CurrentStatus;
+  ownerId: number | null;
+  ownerName: string | null;
+  lastUpdated: string;
+}
+
+export interface StaffTicketListResponse {
+  data: StaffTicketListItem[];
+  meta: TicketListMeta;
+}
+
+export type StaffQueueSortField =
+  | "createdAt"
+  | "updatedAt"
+  | "ticketNumber"
+  | "priority";
+
+export interface StaffTicketQueueParams {
+  q?: string;
+  status?: CurrentStatus;
+  priority?: RequestedPriority;
+  requestedPriority?: RequestedPriority;
+  categoryId?: number;
+  ownerId?: "me" | "unassigned" | number;
+  sort?: StaffQueueSortField;
+  dir?: "asc" | "desc";
+  page?: number;
+  pageSize?: number;
+}
+
+export async function getStaffTicketQueue(
+  params: StaffTicketQueueParams
+): Promise<StaffTicketListResponse> {
+  const query = new URLSearchParams();
+
+  if (params.q) {
+    query.set("q", params.q);
+  }
+
+  if (params.status) {
+    query.set("status", params.status);
+  }
+
+  if (params.priority) {
+    query.set("priority", params.priority);
+  }
+
+  if (params.requestedPriority) {
+    query.set("requestedPriority", params.requestedPriority);
+  }
+
+  if (params.categoryId !== undefined) {
+    query.set("categoryId", String(params.categoryId));
+  }
+
+  if (params.ownerId !== undefined) {
+    query.set("ownerId", String(params.ownerId));
+  }
+
+  query.set("sort", params.sort ?? "updatedAt");
+  query.set("dir", params.dir ?? "desc");
+  query.set("page", String(params.page ?? 1));
+  query.set("pageSize", String(params.pageSize ?? 10));
+
+  const response = await fetch(
+    `${API_URL}/api/staff/tickets?${query.toString()}`,
+    { credentials: "include" }
+  );
+
+  const result = await readJsonSafely(response);
+
+  if (!response.ok) {
+    throw new Error(
+      (result as unknown as ApiErrorBody)?.error ??
+        "Unable to retrieve the ticket queue"
+    );
+  }
+
+  return result as unknown as StaffTicketListResponse;
+}
+
+export interface StaffTicketDetail {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  description: string;
+  requestedPriority: RequestedPriority;
+  itPriority: RequestedPriority;
+  currentStatus: CurrentStatus;
+  problemAppearsResolved: boolean;
+  createdAt: string;
+  updatedAt: string;
+  category: { id: number; name: string };
+  relatedSystem: { id: number; name: string };
+  requester: { id: number; name: string };
+  owner: { id: number; name: string } | null;
+  attachments: TicketAttachment[];
+}
+
+export async function getStaffTicketDetail(
+  ticketId: number
+): Promise<StaffTicketDetail> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}`, {
+    credentials: "include",
+  });
+
+  const result = await readJsonSafely(response);
+
+  if (!response.ok) {
+    throw new Error(
+      (result as unknown as ApiErrorBody)?.error ?? "Unable to retrieve ticket"
+    );
+  }
+
+  return result as unknown as StaffTicketDetail;
+}
+
+// ---------------------------------------------------------
 // Issue 4 — Public Comments (BR-04, shared Requester/IT Staff/Admin route)
 // ---------------------------------------------------------
 
@@ -603,4 +732,5 @@ export async function setProblemAppearsResolved(
     currentStatus: CurrentStatus;
   };
 }
+
 

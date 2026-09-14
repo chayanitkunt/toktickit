@@ -4,9 +4,11 @@ import MyTickets from "./components/MyTickets";
 import TicketDetail from "./components/TicketDetail";
 import Login from "./components/Login";
 import ChangePassword from "./components/ChangePassword";
+import StaffTicketQueue from "./components/StaffTicketQueue";
+import StaffTicketDetail from "./components/StaffTicketDetail";
 import { useAuth } from "./AuthContext";
 
-type Screen = "tickets" | "create" | "detail";
+type Screen = "tickets" | "create" | "detail" | "queue" | "staff-detail";
 
 const ROLE_LABELS: Record<string, string> = {
   REQUESTER: "Requester",
@@ -17,7 +19,13 @@ const ROLE_LABELS: Record<string, string> = {
 function AuthenticatedShell() {
   const { user, logout } = useAuth();
 
-  const [screen, setScreen] = useState<Screen>("tickets");
+  const isRequester = user?.role === "REQUESTER";
+  const isStaffOrAdmin =
+    user?.role === "IT_STAFF" || user?.role === "ADMINISTRATOR";
+
+  const [screen, setScreen] = useState<Screen>(
+    isStaffOrAdmin ? "queue" : "tickets"
+  );
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(
     null
   );
@@ -40,14 +48,25 @@ function AuthenticatedShell() {
     setScreen("tickets");
   }
 
+  // Issue 5 — IT Staff Ticket Queue (GitHub Issue #32)
+  function handleOpenStaffTicket(ticketId: number) {
+    setSelectedTicketId(ticketId);
+    setScreen("staff-detail");
+  }
+
+  function handleBackToQueue() {
+    setSelectedTicketId(null);
+    setScreen("queue");
+  }
+
   async function handleLogout() {
     await logout();
   }
 
-  // Issue 4: Lab 3 only ships the Requester screens end-to-end. IT Staff and
-  // Administrator get their own navigation destinations in later issues —
-  // for now, anyone who isn't a Requester sees only the identity/logout bar.
-  const isRequester = user?.role === "REQUESTER";
+  // Issue 5: Administrator user management is still a later issue — for now,
+  // an Administrator sees the same IT Staff Ticket Queue nav destination
+  // (specification.md §5.2 permits Administrators to perform IT Staff
+  // ticket operations).
 
   return (
     <div
@@ -127,6 +146,30 @@ function AuthenticatedShell() {
                   </button>
                 </nav>
               )}
+
+              {/* Main Navigation — IT Staff / Administrator (Issue 5) */}
+              {isStaffOrAdmin && (
+                <nav
+                  className="d-flex align-items-center gap-1 ms-2 ms-md-3"
+                  aria-label="Main navigation"
+                >
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={handleBackToQueue}
+                    style={{
+                      color: "#FFFFFF",
+                      border: "none",
+                      backgroundColor:
+                        screen === "queue" || screen === "staff-detail"
+                          ? "#0B7A46"
+                          : "transparent",
+                    }}
+                  >
+                    My Queue
+                  </button>
+                </nav>
+              )}
             </div>
 
             {/* Right: Authenticated identity + role + logout */}
@@ -170,7 +213,7 @@ function AuthenticatedShell() {
           margin: "0 auto",
         }}
       >
-        {!isRequester && (
+        {!isRequester && !isStaffOrAdmin && (
           <div
             className="alert mb-0"
             style={{
@@ -180,10 +223,22 @@ function AuthenticatedShell() {
               borderRadius: "8px",
             }}
           >
-            IT Staff and Administrator screens are not part of this Lab 3
-            increment yet.
+            This role's screens are not part of this Lab 3 increment yet.
           </div>
         )}
+
+        {isStaffOrAdmin && screen === "queue" && (
+          <StaffTicketQueue onOpenTicket={handleOpenStaffTicket} />
+        )}
+
+        {isStaffOrAdmin &&
+          screen === "staff-detail" &&
+          selectedTicketId !== null && (
+            <StaffTicketDetail
+              ticketId={selectedTicketId}
+              onBack={handleBackToQueue}
+            />
+          )}
 
         {isRequester && screen === "tickets" && (
           <MyTickets
