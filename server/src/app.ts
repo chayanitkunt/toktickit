@@ -348,6 +348,19 @@ const requireRequester = [
   requireRole("REQUESTER"),
 ];
 
+// ---------------------------------------------------------------------------
+// Issue 5 — IT Staff Ticket Queue
+// requireStaff gates every /api/staff/... route to IT Staff and
+// Administrator only (specification.md §5.2 Authorization Matrix). Unlike
+// requireRequester, there is no ownership filter here by design — the queue
+// is shared across the whole IT Staff team (FR-10).
+// ---------------------------------------------------------------------------
+const requireStaff = [
+  requireAuth,
+  requirePasswordChangeComplete,
+  requireRole("IT_STAFF", "ADMINISTRATOR"),
+];
+
 app.post(
   "/api/tickets",
   ...requireRequester,
@@ -830,6 +843,309 @@ app.get("/api/tickets/:id", ...requireRequester, async (req: Request, res: Respo
     });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Issue 5 — GitHub Issue #32: IT Staff Ticket Queue
+//
+// GET /api/staff/tickets — search, filter, sort, and paginate across every
+// Ticket in the system (no ownership scoping — see requireStaff above).
+// Query params follow docs/lab-03/api-spec.md:
+//   q, status, priority (IT Priority), requestedPriority, categoryId,
+//   ownerId ("me" | "unassigned" | a positive integer),
+//   sort (createdAt|updatedAt|ticketNumber|priority), dir (asc|desc),
+//   page, pageSize (max 50).
+// Every unsupported/invalid value returns 400 rather than being silently
+// ignored, per the handout's "invalid query parameters" requirement.
+// ---------------------------------------------------------------------------
+const STAFF_SORT_FIELD_MAP: Record<string, string> = {
+  createdAt: "createdAt",
+  updatedAt: "updatedAt",
+  ticketNumber: "ticketNumber",
+  priority: "itPriority",
+};
+
+const ALLOWED_CURRENT_STATUSES = [
+  "NEW",
+  "OPEN",
+  "IN_PROGRESS",
+  "WAITING_FOR_REQUESTER",
+  "RESOLVED",
+  "CLOSED",
+  "REOPENED",
+  "CANCELLED",
+];
+
+const ALLOWED_PRIORITIES = ["LOW", "MEDIUM", "HIGH"];
+
+app.get(
+  "/api/staff/tickets",
+  ...requireStaff,
+  async (req: Request, res: Response) => {
+    try {
+      const {
+        q,
+        status,
+        priority,
+        requestedPriority,
+        categoryId,
+        ownerId,
+        sort = "updatedAt",
+        dir = "desc",
+        page = "1",
+        pageSize = "10",
+      } = req.query;
+
+      // ---------------------------------------------------------
+      // Pagination validation
+      // ---------------------------------------------------------
+      const parsedPage = Number(page);
+      const parsedPageSize = Number(pageSize);
+
+      if (!Number.isInteger(parsedPage) || parsedPage < 1) {
+        return res.status(400).json({
+          error: "page must be a positive integer",
+          code: "invalid_input",
+        });
+      }
+
+      if (
+        !Number.isInteger(parsedPageSize) ||
+        parsedPageSize < 1 ||
+        parsedPageSize > 50
+      ) {
+        return res.status(400).json({
+          error: "pageSize must be between 1 and 50",
+          code: "invalid_input",
+        });
+      }
+
+      // ---------------------------------------------------------
+      // Sorting validation
+      // ---------------------------------------------------------
+      if (typeof sort !== "string" || !(sort in STAFF_SORT_FIELD_MAP)) {
+        return res.status(400).json({
+          error: "Invalid sort field",
+          code: "invalid_input",
+        });
+      }
+
+      if (dir !== "asc" && dir !== "desc") {
+        return res.status(400).json({
+          error: 'dir must be "asc" or "desc"',
+          code: "invalid_input",
+        });
+      }
+
+      const sortField = STAFF_SORT_FIELD_MAP[sort];
+      const sortDir = dir as "asc" | "desc";
+
+      // ---------------------------------------------------------
+      // Build filters
+      // ---------------------------------------------------------
+      const where: any = {};
+
+      if (typeof q === "string" && q.trim() !== "") {
+        const searchText = q.trim();
+
+        where.OR = [
+          { ticketNumber: { contains: searchText, mode: "insensitive" } },
+          { summary: { contains: searchText, mode: "insensitive" } },
+        ];
+      }
+
+      if (status !== undefined) {
+        if (
+          typeof status !== "string" ||
+          !ALLOWED_CURRENT_STATUSES.includes(status)
+        ) {
+          return res.status(400).json({
+            error: "Invalid status",
+            code: "invalid_input",
+          });
+        }
+
+        where.currentStatus = status;
+      }
+
+      if (priority !== undefined) {
+        if (
+          typeof priority !== "string" ||
+          !ALLOWED_PRIORITIES.includes(priority)
+        ) {
+          return res.status(400).json({
+            error: "Invalid priority",
+            code: "invalid_input",
+          });
+        }
+
+        where.itPriority = priority;
+      }
+
+      if (requestedPriority !== undefined) {
+        if (
+          typeof requestedPriority !== "string" ||
+          !ALLOWED_PRIORITIES.includes(requestedPriority)
+        ) {
+          return res.status(400).json({
+            error: "Invalid requestedPriority",
+            code: "invalid_input",
+          });
+        }
+
+        where.requestedPriority = requestedPriority;
+      }
+
+      if (categoryId !== undefined) {
+        const parsedCategoryId = Number(categoryId);
+
+        if (!Number.isInteger(parsedCategoryId) || parsedCategoryId <= 0) {
+          return res.status(400).json({
+            error: "categoryId must be a positive integer",
+            code: "invalid_input",
+          });
+        }
+
+        where.categoryId = parsedCategoryId;
+      }
+
+      if (ownerId !== undefined) {
+        if (ownerId === "unassigned") {
+          where.ownerId = null;
+        } else if (ownerId === "me") {
+          where.ownerId = req.currentUser!.id;
+        } else {
+          const parsedOwnerId = Number(ownerId);
+
+          if (!Number.isInteger(parsedOwnerId) || parsedOwnerId <= 0) {
+            return res.status(400).json({
+              error:
+                'ownerId must be "me", "unassigned", or a positive integer',
+              code: "invalid_input",
+            });
+          }
+
+          where.ownerId = parsedOwnerId;
+        }
+      }
+
+      // ---------------------------------------------------------
+      // Query database
+      // ---------------------------------------------------------
+      const skip = (parsedPage - 1) * parsedPageSize;
+
+      const [tickets, total] = await Promise.all([
+        getPrisma().ticket.findMany({
+          where,
+          skip,
+          take: parsedPageSize,
+          orderBy: { [sortField]: sortDir },
+          include: {
+            category: { select: { name: true } },
+            owner: { select: { id: true, name: true } },
+          },
+        }),
+
+        getPrisma().ticket.count({ where }),
+      ]);
+
+      const data = tickets.map((ticket) => ({
+        id: ticket.id,
+        ticketNumber: ticket.ticketNumber,
+        createdAt: ticket.createdAt,
+        summary: ticket.summary,
+        categoryName: ticket.category.name,
+        requestedPriority: ticket.requestedPriority,
+        itPriority: ticket.itPriority,
+        currentStatus: ticket.currentStatus,
+        ownerId: ticket.ownerId,
+        ownerName: ticket.owner?.name ?? null,
+        lastUpdated: ticket.updatedAt,
+      }));
+
+      const totalPages =
+        total === 0 ? 0 : Math.ceil(total / parsedPageSize);
+
+      return res.status(200).json({
+        data,
+        meta: {
+          total,
+          page: parsedPage,
+          pageSize: parsedPageSize,
+          totalPages,
+        },
+      });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        error: "Unable to retrieve the ticket queue",
+        code: "server_error",
+      });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Issue 5 — IT Staff Ticket Detail (read)
+// Unlike the Requester's GET /api/tickets/:id, there is no ownership filter:
+// any active IT Staff or Administrator may open any Ticket (FR-10). Claiming,
+// reassigning, IT Priority, status changes, and Internal Notes are a
+// separate issue (IT Staff Ticket operations) — this route only supports
+// the "Open Ticket Detail" action from the queue.
+// ---------------------------------------------------------------------------
+app.get(
+  "/api/staff/tickets/:id",
+  ...requireStaff,
+  async (req: Request, res: Response) => {
+    try {
+      const ticketId = Number(req.params.id);
+
+      if (!Number.isInteger(ticketId) || ticketId <= 0) {
+        return res.status(400).json({
+          error: "Invalid ticket id",
+          code: "invalid_input",
+        });
+      }
+
+      const ticket = await getPrisma().ticket.findUnique({
+        where: { id: ticketId },
+        include: {
+          category: { select: { id: true, name: true } },
+          relatedSystem: { select: { id: true, name: true } },
+          requester: { select: { id: true, name: true } },
+          owner: { select: { id: true, name: true } },
+          attachments: {
+            select: {
+              id: true,
+              fileName: true,
+              fileSize: true,
+              mimeType: true,
+              createdAt: true,
+              isRemoved: true,
+              removedAt: true,
+              removedReason: true,
+            },
+            orderBy: { createdAt: "asc" },
+          },
+        },
+      });
+
+      if (!ticket) {
+        return res.status(404).json({
+          error: "Ticket not found",
+          code: "not_found",
+        });
+      }
+
+      return res.status(200).json(ticket);
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        error: "Unable to retrieve ticket",
+        code: "server_error",
+      });
+    }
+  }
+);
 
 app.get(
   "/api/tickets/:id/attachments/:attachmentId/download",
@@ -1334,3 +1650,4 @@ app.use(
 );
 
 export default app;
+
