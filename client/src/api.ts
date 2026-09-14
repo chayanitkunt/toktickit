@@ -635,6 +635,172 @@ export async function getStaffTicketDetail(
 }
 
 // ---------------------------------------------------------
+// Issue 6 — IT Staff Ticket Detail operations (GitHub Issue #33)
+// ---------------------------------------------------------
+
+export interface EligibleOwner {
+  id: number;
+  name: string;
+  role: UserRole;
+}
+
+export async function getEligibleOwners(): Promise<EligibleOwner[]> {
+  const response = await fetch(`${API_URL}/api/staff/eligible-owners`, {
+    credentials: "include",
+  });
+
+  const result = await readJsonSafely(response);
+
+  if (!response.ok) {
+    throw new Error(
+      (result as unknown as ApiErrorBody)?.error ??
+        "Unable to retrieve eligible Ticket Owners"
+    );
+  }
+
+  return result as unknown as EligibleOwner[];
+}
+
+// Omit ownerId to self-claim; pass it to assign/reassign to another
+// eligible (active IT Staff/Administrator) user (BR-06).
+export async function claimTicket(
+  ticketId: number,
+  ownerId?: number
+): Promise<{ id: number; owner: { id: number; name: string } | null }> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/claim`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(ownerId === undefined ? {} : { ownerId }),
+  });
+
+  const result = await readJsonSafely(response);
+
+  if (!response.ok) {
+    throw new Error(
+      (result as unknown as ApiErrorBody)?.error ?? "Unable to update Ticket Owner"
+    );
+  }
+
+  return result as unknown as {
+    id: number;
+    owner: { id: number; name: string } | null;
+  };
+}
+
+export async function updateItPriority(
+  ticketId: number,
+  itPriority: RequestedPriority
+): Promise<{ id: number; itPriority: RequestedPriority }> {
+  const response = await fetch(
+    `${API_URL}/api/staff/tickets/${ticketId}/priority`,
+    {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ itPriority }),
+    }
+  );
+
+  const result = await readJsonSafely(response);
+
+  if (!response.ok) {
+    throw new Error(
+      (result as unknown as ApiErrorBody)?.error ?? "Unable to update IT Priority"
+    );
+  }
+
+  return result as unknown as { id: number; itPriority: RequestedPriority };
+}
+
+export async function updateTicketStatus(
+  ticketId: number,
+  currentStatus: CurrentStatus
+): Promise<{ id: number; currentStatus: CurrentStatus }> {
+  const response = await fetch(
+    `${API_URL}/api/staff/tickets/${ticketId}/status`,
+    {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentStatus }),
+    }
+  );
+
+  const result = await readJsonSafely(response);
+
+  if (!response.ok) {
+    throw new Error(
+      (result as unknown as ApiErrorBody)?.error ?? "Unable to update ticket status"
+    );
+  }
+
+  return result as unknown as { id: number; currentStatus: CurrentStatus };
+}
+
+// ---------------------------------------------------------------------------
+// Internal Notes (BR-04) — IT Staff/Administrator only, both to read and to
+// create. Deliberately a separate resource/type from TicketComment: never
+// rendered in the Requester's TicketDetail, and a Requester's session never
+// reaches these routes at all (403 before any note content is computed).
+// ---------------------------------------------------------------------------
+export interface TicketNote {
+  id: number;
+  content: string;
+  createdAt: string;
+  author: {
+    id: number;
+    name: string;
+    role: UserRole;
+  };
+}
+
+export async function getInternalNotes(
+  ticketId: number
+): Promise<TicketNote[]> {
+  const response = await fetch(
+    `${API_URL}/api/staff/tickets/${ticketId}/notes`,
+    { credentials: "include" }
+  );
+
+  const result = await readJsonSafely(response);
+
+  if (!response.ok) {
+    throw new Error(
+      (result as unknown as ApiErrorBody)?.error ??
+        "Unable to retrieve Internal Notes"
+    );
+  }
+
+  return result as unknown as TicketNote[];
+}
+
+export async function postInternalNote(
+  ticketId: number,
+  content: string
+): Promise<TicketNote> {
+  const response = await fetch(
+    `${API_URL}/api/staff/tickets/${ticketId}/notes`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    }
+  );
+
+  const result = await readJsonSafely(response);
+
+  if (!response.ok) {
+    throw new Error(
+      (result as unknown as ApiErrorBody)?.error ?? "Unable to post Internal Note"
+    );
+  }
+
+  return result as unknown as TicketNote;
+}
+
+// ---------------------------------------------------------
 // Issue 4 — Public Comments (BR-04, shared Requester/IT Staff/Admin route)
 // ---------------------------------------------------------
 
@@ -732,5 +898,3 @@ export async function setProblemAppearsResolved(
     currentStatus: CurrentStatus;
   };
 }
-
-

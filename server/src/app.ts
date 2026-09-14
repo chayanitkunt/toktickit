@@ -15,6 +15,8 @@ import {
   requirePasswordChangeComplete,
   requireRole,
 } from "./auth.js";
+import { isValidStatusTransition } from "./ticketStatusTransitions.js";
+import type { CurrentStatus as PrismaCurrentStatus } from "@prisma/client";
 
 
 // getPrisma() is your lazy database handle. Call it INSIDE a route when you
@@ -1147,12 +1149,309 @@ app.get(
   }
 );
 
+// ---------------------------------------------------------------------------
+// Issue 6 — IT Staff Ticket Detail operations (GitHub Issue #33)
+//
+// Shared helper: every route below (claim, priority, status, notes) needs
+// the same "does this ticket exist" check before doing anything else, and
+// the same safe 404 for a bad id. Role is already fully handled by
+// requireStaff — there is no ownership scoping for staff routes (FR-10).
+// ---------------------------------------------------------------------------
+async function loadStaffTicketOrRespond(
+  res: Response,
+  ticketId: number
+) {
+  if (!Number.isInteger(ticketId) || ticketId <= 0) {
+    res.status(400).json({ error: "Invalid ticket id", code: "invalid_input" });
+    return null;
+  }
+
+  const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId } });
+
+  if (!ticket) {
+    res.status(404).json({ error: "Ticket not found", code: "not_found" });
+    return null;
+  }
+
+  return ticket;
+}
+
+// GET /api/staff/eligible-owners — active IT Staff/Administrator users, for
+// the Ticket Owner dropdown (ui-spec.md §5). Not part of the original
+// api-spec.md table; documented as an addition there alongside this route,
+// since the dropdown has no other way to know who is assignable (BR-06).
 app.get(
-  "/api/tickets/:id/attachments/:attachmentId/download",
-  ...requireRequester,
+  "/api/staff/eligible-owners",
+  ...requireStaff,
+  async (_req: Request, res: Response) => {
+    try {
+      const owners = await getPrisma().user.findMany({
+        where: {
+          isActive: true,
+          role: { in: ["IT_STAFF", "ADMINISTRATOR"] },
+        },
+        select: { id: true, name: true, role: true },
+        orderBy: { name: "asc" },
+      });
+
+      return res.status(200).json(owners);
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        error: "Unable to retrieve eligible Ticket Owners",
+        code: "server_error",
+      });
+    }
+  }
+);
+
+// POST /api/staff/tickets/:id/claim — FR-11/BR-06/AC-11.
+// Omit ownerId to self-claim; provide it to assign/reassign to another
+// eligible (active IT Staff/Administrator) user, regardless of who
+// currently owns the ticket.
+app.post(
+  "/api/staff/tickets/:id/claim",
+  ...requireStaff,
   async (req: Request, res: Response) => {
     try {
-      const requesterId = req.currentUser!.id;
+      const ticketId = Number(req.params.id);
+      const ticket = await loadStaffTicketOrRespond(res, ticketId);
+      if (!ticket) return;
+
+      const { ownerId } = req.body ?? {};
+      let targetOwnerId: number;
+
+      if (ownerId === undefined || ownerId === null) {
+        targetOwnerId = req.currentUser!.id;
+      } else if (Number.isInteger(ownerId) && ownerId > 0) {
+        targetOwnerId = ownerId;
+      } else {
+        return res.status(400).json({
+          error: "ownerId must be a positive integer",
+          code: "invalid_input",
+        });
+      }
+
+      // BR-06: only an active IT Staff or Administrator may be a Ticket
+      // Owner — reject an inactive user or a Requester with 422, not 400,
+      // since the shape of the request is valid but the value is not.
+      const targetUser = await getPrisma().user.findUnique({
+        where: { id: targetOwnerId },
+      });
+
+      if (
+        !targetUser ||
+        !targetUser.isActive ||
+        (targetUser.role !== "IT_STAFF" && targetUser.role !== "ADMINISTRATOR")
+      ) {
+        return res.status(422).json({
+          error: "Ticket Owner must be an active IT Staff or Administrator user",
+          code: "invalid_owner",
+        });
+      }
+
+      const updated = await getPrisma().ticket.update({
+        where: { id: ticketId },
+        data: { ownerId: targetOwnerId },
+        include: { owner: { select: { id: true, name: true } } },
+      });
+
+      return res.status(200).json({ id: updated.id, owner: updated.owner });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        error: "Unable to update Ticket Owner",
+        code: "server_error",
+      });
+    }
+  }
+);
+
+// PATCH /api/staff/tickets/:id/priority — FR-12/BR-07/AC-12.
+app.patch(
+  "/api/staff/tickets/:id/priority",
+  ...requireStaff,
+  async (req: Request, res: Response) => {
+    try {
+      const ticketId = Number(req.params.id);
+      const ticket = await loadStaffTicketOrRespond(res, ticketId);
+      if (!ticket) return;
+
+      const { itPriority } = req.body ?? {};
+
+      if (typeof itPriority !== "string" || !ALLOWED_PRIORITIES.includes(itPriority)) {
+        return res.status(400).json({
+          error: "itPriority must be LOW, MEDIUM, or HIGH",
+          code: "invalid_input",
+        });
+      }
+
+      const updated = await getPrisma().ticket.update({
+        where: { id: ticketId },
+        data: { itPriority: itPriority as "LOW" | "MEDIUM" | "HIGH" },
+      });
+
+      return res.status(200).json({ id: updated.id, itPriority: updated.itPriority });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        error: "Unable to update IT Priority",
+        code: "server_error",
+      });
+    }
+  }
+);
+
+// PATCH /api/staff/tickets/:id/status — FR-13/BR-08/AC-13.
+// Validated against the transition matrix in ticketStatusTransitions.ts;
+// an illegal transition is rejected with 422 and the ticket is unchanged.
+app.patch(
+  "/api/staff/tickets/:id/status",
+  ...requireStaff,
+  async (req: Request, res: Response) => {
+    try {
+      const ticketId = Number(req.params.id);
+      const ticket = await loadStaffTicketOrRespond(res, ticketId);
+      if (!ticket) return;
+
+      const { currentStatus } = req.body ?? {};
+
+      if (
+        typeof currentStatus !== "string" ||
+        !ALLOWED_CURRENT_STATUSES.includes(currentStatus)
+      ) {
+        return res.status(400).json({
+          error: "Invalid status",
+          code: "invalid_input",
+        });
+      }
+
+      if (!isValidStatusTransition(ticket.currentStatus, currentStatus)) {
+        return res.status(422).json({
+          error: `Cannot move a ticket from ${ticket.currentStatus} to ${currentStatus}`,
+          code: "invalid_transition",
+        });
+      }
+
+      const updated = await getPrisma().ticket.update({
+        where: { id: ticketId },
+        data: { currentStatus: currentStatus as PrismaCurrentStatus },
+      });
+
+      return res.status(200).json({ id: updated.id, currentStatus: updated.currentStatus });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        error: "Unable to update ticket status",
+        code: "server_error",
+      });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Internal Notes (BR-04/FR-14) — deliberately a separate resource from
+// Public Comments (see the §Comments note further down): IT Staff/
+// Administrator only, both to read and to create. A Requester never reaches
+// these routes at all — requireStaff rejects with 403 before any ticket
+// lookup happens, so no note content is ever computed for a Requester
+// caller (AC-15).
+// ---------------------------------------------------------------------------
+app.get(
+  "/api/staff/tickets/:id/notes",
+  ...requireStaff,
+  async (req: Request, res: Response) => {
+    try {
+      const ticketId = Number(req.params.id);
+      const ticket = await loadStaffTicketOrRespond(res, ticketId);
+      if (!ticket) return;
+
+      const notes = await getPrisma().ticketNote.findMany({
+        where: { ticketId },
+        orderBy: { createdAt: "asc" },
+        include: { author: { select: { id: true, name: true, role: true } } },
+      });
+
+      return res.status(200).json(
+        notes.map((note) => ({
+          id: note.id,
+          content: note.content,
+          createdAt: note.createdAt,
+          author: note.author,
+        }))
+      );
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        error: "Unable to retrieve Internal Notes",
+        code: "server_error",
+      });
+    }
+  }
+);
+
+app.post(
+  "/api/staff/tickets/:id/notes",
+  ...requireStaff,
+  async (req: Request, res: Response) => {
+    try {
+      const ticketId = Number(req.params.id);
+      const ticket = await loadStaffTicketOrRespond(res, ticketId);
+      if (!ticket) return;
+
+      const { content } = req.body ?? {};
+      const trimmed = typeof content === "string" ? content.trim() : "";
+
+      // BR-09: empty/whitespace-only content rejected; same 2000-char cap
+      // as Public Comments.
+      if (trimmed === "") {
+        return res.status(400).json({
+          error: "Note content is required",
+          code: "invalid_input",
+        });
+      }
+
+      if (trimmed.length > 2000) {
+        return res.status(400).json({
+          error: "Note must be 2000 characters or fewer",
+          code: "invalid_input",
+        });
+      }
+
+      const note = await getPrisma().ticketNote.create({
+        data: {
+          ticketId,
+          authorId: req.currentUser!.id,
+          content: trimmed,
+        },
+        include: { author: { select: { id: true, name: true, role: true } } },
+      });
+
+      return res.status(201).json({
+        id: note.id,
+        content: note.content,
+        createdAt: note.createdAt,
+        author: note.author,
+      });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        error: "Unable to post Internal Note",
+        code: "server_error",
+      });
+    }
+  }
+);
+
+app.get(
+  "/api/tickets/:id/attachments/:attachmentId/download",
+  requireAuth,
+  requirePasswordChangeComplete,
+  async (req: Request, res: Response) => {
+    try {
+      const currentUser = req.currentUser!;
+      const isStaffOrAdmin =
+        currentUser.role === "IT_STAFF" || currentUser.role === "ADMINISTRATOR";
 
       const ticketId = Number(req.params.id);
       const attachmentId = Number(req.params.attachmentId);
@@ -1169,14 +1468,14 @@ app.get(
         });
       }
 
-      // Find the attachment together with its ticket owner
+      // Issue 6: IT Staff/Administrator may download an attachment on any
+      // ticket (FR-10 — no ownership scoping for staff). A Requester may
+      // only download from a ticket they own, same as Lab 2.
       const attachment = await getPrisma().attachment.findFirst({
         where: {
           id: attachmentId,
           ticketId,
-          ticket: {
-            requesterId,
-          },
+          ...(isStaffOrAdmin ? {} : { ticket: { requesterId: currentUser.id } }),
         },
       });
 
@@ -1650,4 +1949,3 @@ app.use(
 );
 
 export default app;
-

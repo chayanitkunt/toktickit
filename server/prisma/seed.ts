@@ -59,6 +59,16 @@ export async function main() {
     { name: "Quinn Tester", email: "quinn.requester@example.com", role: "REQUESTER" as const, isActive: true },
     { name: "Riley Tester", email: "riley.requester@example.com", role: "REQUESTER" as const, isActive: true },
     { name: "Michael Brown", email: "michael.brown@tiktockit.com", role: "IT_STAFF" as const, isActive: true },
+    // Issue 6 — server/tests/lab-03/staff-ticket-detail.api.test.ts needs a
+    // *second* IT Staff account to exercise reassignment (AC-11/BR-06:
+    // staff member B takes over a ticket already claimed by staff member
+    // A). Like michael.brown above, this is a dedicated automation
+    // account exempt from mustChangePassword — reusing Sarah or David for
+    // this would permanently mutate their real seeded password via
+    // POST /api/auth/change-password, breaking their intended role of
+    // demonstrating the mandatory-first-login flow (AC-02) on repeat test
+    // runs.
+    { name: "Jordan Ops", email: "staff.automation.b@tiktockit.com", role: "IT_STAFF" as const, isActive: true },
     { name: "Sarah Johnson", email: "sarah.johnson@tiktockit.com", role: "IT_STAFF" as const, isActive: true },
     { name: "David Lee", email: "david.lee@tiktockit.com", role: "IT_STAFF" as const, isActive: true },
     { name: "Kevin Patel", email: "kevin.patel@tiktockit.com", role: "IT_STAFF" as const, isActive: false },
@@ -83,6 +93,9 @@ export async function main() {
       // flow can still be demonstrated end-to-end with a real IT Staff
       // account for grading evidence.
       "michael.brown@tiktockit.com",
+      // Issue 6 — second IT Staff automation account, see the comment next
+      // to its entry above.
+      "staff.automation.b@tiktockit.com",
     ];
     const mustChangePassword =
       u.role !== "ADMINISTRATOR" && !automationEmails.includes(u.email);
