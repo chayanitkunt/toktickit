@@ -6,9 +6,16 @@ import Login from "./components/Login";
 import ChangePassword from "./components/ChangePassword";
 import StaffTicketQueue from "./components/StaffTicketQueue";
 import StaffTicketDetail from "./components/StaffTicketDetail";
+import UserManagement from "./components/UserManagement";
 import { useAuth } from "./AuthContext";
 
-type Screen = "tickets" | "create" | "detail" | "queue" | "staff-detail";
+type Screen =
+  | "tickets"
+  | "create"
+  | "detail"
+  | "queue"
+  | "staff-detail"
+  | "admin-users";
 
 const ROLE_LABELS: Record<string, string> = {
   REQUESTER: "Requester",
@@ -22,6 +29,7 @@ function AuthenticatedShell() {
   const isRequester = user?.role === "REQUESTER";
   const isStaffOrAdmin =
     user?.role === "IT_STAFF" || user?.role === "ADMINISTRATOR";
+  const isAdmin = user?.role === "ADMINISTRATOR";
 
   const [screen, setScreen] = useState<Screen>(
     isStaffOrAdmin ? "queue" : "tickets"
@@ -59,14 +67,18 @@ function AuthenticatedShell() {
     setScreen("queue");
   }
 
+  // Issue 7 — Administrator User Management (specification.md §5.2:
+  // Administrators may also perform IT Staff ticket operations, so "Users"
+  // is an additional nav destination alongside "My Queue" rather than a
+  // replacement for it).
+  function handleOpenUserManagement() {
+    setSelectedTicketId(null);
+    setScreen("admin-users");
+  }
+
   async function handleLogout() {
     await logout();
   }
-
-  // Issue 5: Administrator user management is still a later issue — for now,
-  // an Administrator sees the same IT Staff Ticket Queue nav destination
-  // (specification.md §5.2 permits Administrators to perform IT Staff
-  // ticket operations).
 
   return (
     <div
@@ -168,6 +180,24 @@ function AuthenticatedShell() {
                   >
                     My Queue
                   </button>
+
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={handleOpenUserManagement}
+                      style={{
+                        color: "#FFFFFF",
+                        border: "none",
+                        backgroundColor:
+                          screen === "admin-users"
+                            ? "#0B7A46"
+                            : "transparent",
+                      }}
+                    >
+                      Users
+                    </button>
+                  )}
                 </nav>
               )}
             </div>
@@ -240,6 +270,8 @@ function AuthenticatedShell() {
             />
           )}
 
+        {isAdmin && screen === "admin-users" && <UserManagement />}
+
         {isRequester && screen === "tickets" && (
           <MyTickets
             onCreateTicket={handleCreateTicket}
@@ -295,4 +327,3 @@ export default function App() {
 
   return <AuthenticatedShell />;
 }
-

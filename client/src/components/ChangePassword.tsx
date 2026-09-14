@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../AuthContext";
-
-const ZEN_GREEN = "#006B3C";
+import { AuthHeader, EyeIcon, ZEN_GREEN } from "./AuthVisuals";
 
 interface PasswordRule {
   id: string;
@@ -91,24 +90,17 @@ export default function ChangePassword() {
   }
 
   return (
-    <div
-      className="d-flex align-items-center justify-content-center"
-      style={{ minHeight: "100vh", backgroundColor: "#F5F7F6" }}
-    >
+    <div style={{ minHeight: "100vh", backgroundColor: "#F5F7F6" }}>
+      <AuthHeader />
+
       <div
-        className="card shadow-sm border-0 p-4 p-md-5 w-100"
+        className="d-flex align-items-center justify-content-center px-3"
+        style={{ minHeight: "calc(100vh - 64px)" }}
+      >
+      <div
+        className="card shadow-sm border-0 p-4 p-md-5 w-100 my-4"
         style={{ maxWidth: "440px" }}
       >
-        <div className="d-flex align-items-center gap-2 mb-4">
-          <span style={{ fontSize: "1.5rem", color: ZEN_GREEN }}>◷</span>
-          <h1
-            className="fw-bold mb-0"
-            style={{ fontSize: "1.25rem", color: "#1A2E26" }}
-          >
-            TokTickIT
-          </h1>
-        </div>
-
         <h2 className="h5 fw-semibold mb-1" style={{ color: "#1A2E26" }}>
           Change Your Password
         </h2>
@@ -135,12 +127,12 @@ export default function ChangePassword() {
               />
               <button
                 type="button"
-                className="btn btn-outline-secondary"
+                className="btn btn-outline-secondary d-flex align-items-center"
                 onClick={() => setShowCurrent((value) => !value)}
                 tabIndex={-1}
                 aria-label={showCurrent ? "Hide password" : "Show password"}
               >
-                {showCurrent ? "Hide" : "Show"}
+                <EyeIcon crossedOut={showCurrent} />
               </button>
               {fieldErrors.currentPassword && (
                 <div className="invalid-feedback">
@@ -168,12 +160,12 @@ export default function ChangePassword() {
               />
               <button
                 type="button"
-                className="btn btn-outline-secondary"
+                className="btn btn-outline-secondary d-flex align-items-center"
                 onClick={() => setShowNew((value) => !value)}
                 tabIndex={-1}
                 aria-label={showNew ? "Hide password" : "Show password"}
               >
-                {showNew ? "Hide" : "Show"}
+                <EyeIcon crossedOut={showNew} />
               </button>
               {fieldErrors.newPassword && (
                 <div className="invalid-feedback">
@@ -201,12 +193,12 @@ export default function ChangePassword() {
               />
               <button
                 type="button"
-                className="btn btn-outline-secondary"
+                className="btn btn-outline-secondary d-flex align-items-center"
                 onClick={() => setShowConfirm((value) => !value)}
                 tabIndex={-1}
                 aria-label={showConfirm ? "Hide password" : "Show password"}
               >
-                {showConfirm ? "Hide" : "Show"}
+                <EyeIcon crossedOut={showConfirm} />
               </button>
               {fieldErrors.confirmPassword && (
                 <div className="invalid-feedback">
@@ -268,6 +260,8 @@ export default function ChangePassword() {
           </button>
         </div>
       </div>
+      </div>
     </div>
   );
 }
+

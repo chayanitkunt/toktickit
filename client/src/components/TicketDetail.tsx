@@ -87,7 +87,7 @@ function ReadOnlyField({
   value: React.ReactNode;
 }) {
   return (
-    <div className="mb-3">
+    <div className="mb-2 mb-md-3">
       <div
         className="small fw-semibold mb-1"
         style={{ color: "#5A6E65" }}
@@ -95,15 +95,16 @@ function ReadOnlyField({
         {label}
       </div>
       <div
-        className="px-3 py-2"
+        className="px-2 px-md-3 py-1 py-md-2"
         style={{
           backgroundColor: "#F5F7F6",
           border: "1px solid #E0E6E2",
           borderRadius: "8px",
           color: "#1A2E26",
-          minHeight: "42px",
+          minHeight: "38px",
           display: "flex",
           alignItems: "center",
+          overflow: "hidden",
         }}
       >
         {value}
@@ -368,38 +369,38 @@ export default function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
             </div>
           </div>
 
-          <div className="row">
+          <div className="row g-2 g-md-3">
             <div className="col-12 col-md-6">
               <ReadOnlyField
                 label="Ticket Date"
                 value={formatDate(ticket.createdAt)}
               />
             </div>
-            <div className="col-12 col-md-6">
+            <div className="col-6 col-md-6">
               <ReadOnlyField
                 label="Category"
                 value={ticket.category?.name ?? "-"}
               />
             </div>
-            <div className="col-12 col-md-6">
+            <div className="col-6 col-md-6">
               <ReadOnlyField
                 label="Related System"
                 value={ticket.relatedSystem?.name ?? "-"}
               />
             </div>
-            <div className="col-12 col-md-6">
+            <div className="col-6 col-md-6">
               <ReadOnlyField
                 label="Requested Priority"
                 value={<PriorityBadge priority={ticket.requestedPriority} />}
               />
             </div>
-            <div className="col-12 col-md-6">
+            <div className="col-6 col-md-6">
               <ReadOnlyField
                 label="IT Priority"
                 value={<PriorityBadge priority={ticket.itPriority} />}
               />
             </div>
-            <div className="col-12 col-md-6">
+            <div className="col-6 col-md-6">
               <ReadOnlyField
                 label="Ticket Owner"
                 value={ticket.owner?.name ?? "Unassigned"}
@@ -721,4 +722,3 @@ export default function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
     </div>
   );
 }
-
