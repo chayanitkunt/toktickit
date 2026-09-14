@@ -1,18 +1,12 @@
 import { useState } from "react";
 import CreateTicket from "./components/CreateTicket";
 import MyTickets from "./components/MyTickets";
-import RequesterSelector from "./components/RequesterSelector";
 import TicketDetail from "./components/TicketDetail";
 import Login from "./components/Login";
 import ChangePassword from "./components/ChangePassword";
-import { useDevelopmentRequester, DevelopmentRequesterProvider } from "./DevelopmentRequesterContext";
 import { useAuth } from "./AuthContext";
 
-type Screen =
-  | "requester"
-  | "tickets"
-  | "create"
-  | "detail";
+type Screen = "tickets" | "create" | "detail";
 
 const ROLE_LABELS: Record<string, string> = {
   REQUESTER: "Requester",
@@ -22,20 +16,11 @@ const ROLE_LABELS: Record<string, string> = {
 
 function AuthenticatedShell() {
   const { user, logout } = useAuth();
-  const { currentRequester } = useDevelopmentRequester();
 
-  const [screen, setScreen] = useState<Screen>(
-    currentRequester ? "tickets" : "requester"
+  const [screen, setScreen] = useState<Screen>("tickets");
+  const [selectedTicketId, setSelectedTicketId] = useState<number | null>(
+    null
   );
-
-  const [selectedTicketId, setSelectedTicketId] =
-    useState<number | null>(null);
-
-  function handleRequesterContinue() {
-    if (currentRequester) {
-      setScreen("tickets");
-    }
-  }
 
   function handleCreateTicket() {
     setScreen("create");
@@ -55,13 +40,14 @@ function AuthenticatedShell() {
     setScreen("tickets");
   }
 
-  function handleChangeRequester() {
-    setScreen("requester");
-  }
-
   async function handleLogout() {
     await logout();
   }
+
+  // Issue 4: Lab 3 only ships the Requester screens end-to-end. IT Staff and
+  // Administrator get their own navigation destinations in later issues —
+  // for now, anyone who isn't a Requester sees only the identity/logout bar.
+  const isRequester = user?.role === "REQUESTER";
 
   return (
     <div
@@ -102,8 +88,8 @@ function AuthenticatedShell() {
                 </h1>
               </div>
 
-              {/* Main Navigation */}
-              {currentRequester && screen !== "requester" && (
+              {/* Main Navigation — Requester only for now (see isRequester) */}
+              {isRequester && (
                 <nav
                   className="d-flex align-items-center gap-1 ms-2 ms-md-3"
                   aria-label="Main navigation"
@@ -145,18 +131,6 @@ function AuthenticatedShell() {
 
             {/* Right: Authenticated identity + role + logout */}
             <div className="d-flex align-items-center gap-2 ms-auto">
-              {currentRequester && screen !== "requester" && (
-                <button
-                  type="button"
-                  onClick={handleChangeRequester}
-                  className="btn btn-sm text-white border-white-50"
-                  style={{ whiteSpace: "nowrap" }}
-                  title="Development Requester selector (removed in Issue 4)"
-                >
-                  {currentRequester.name}
-                </button>
-              )}
-
               {user && (
                 <div
                   className="d-flex align-items-center gap-2"
@@ -196,36 +170,41 @@ function AuthenticatedShell() {
           margin: "0 auto",
         }}
       >
-        {screen === "requester" && (
-          <RequesterSelector
-            onContinue={handleRequesterContinue}
-          />
+        {!isRequester && (
+          <div
+            className="alert mb-0"
+            style={{
+              color: "#0369A1",
+              backgroundColor: "#E0F2FE",
+              border: "1px solid #7DD3FC",
+              borderRadius: "8px",
+            }}
+          >
+            IT Staff and Administrator screens are not part of this Lab 3
+            increment yet.
+          </div>
         )}
 
-        {screen === "tickets" && currentRequester && (
+        {isRequester && screen === "tickets" && (
           <MyTickets
             onCreateTicket={handleCreateTicket}
             onOpenTicket={handleOpenTicket}
           />
         )}
 
-       {screen === "create" && currentRequester && (
+        {isRequester && screen === "create" && (
           <CreateTicket
-            requesterId={currentRequester.id}
             onCancel={handleBackToTickets}
             onCreated={handleTicketCreated}
           />
         )}
 
-        {screen === "detail" &&
-          currentRequester &&
-          selectedTicketId !== null && (
-            <TicketDetail
-              ticketId={selectedTicketId}
-              requesterId={currentRequester.id}
-              onBack={handleBackToTickets}
-            />
-          )}
+        {isRequester && screen === "detail" && selectedTicketId !== null && (
+          <TicketDetail
+            ticketId={selectedTicketId}
+            onBack={handleBackToTickets}
+          />
+        )}
       </main>
     </div>
   );
@@ -259,9 +238,6 @@ export default function App() {
     return <ChangePassword />;
   }
 
-  return (
-    <DevelopmentRequesterProvider>
-      <AuthenticatedShell />
-    </DevelopmentRequesterProvider>
-  );
+  return <AuthenticatedShell />;
 }
+

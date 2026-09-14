@@ -7,7 +7,6 @@ import {
   type TicketListItem,
   type TicketListMeta,
 } from "../api";
-import { useDevelopmentRequester } from "../DevelopmentRequesterContext";
 
 interface MyTicketsProps {
   onCreateTicket?: () => void;
@@ -18,8 +17,6 @@ export default function MyTickets({
   onCreateTicket,
   onOpenTicket,
 }: MyTicketsProps) {
-  const { currentRequester } = useDevelopmentRequester();
-
   const [tickets, setTickets] = useState<TicketListItem[]>([]);
   const [meta, setMeta] = useState<TicketListMeta>({
     total: 0,
@@ -68,22 +65,16 @@ export default function MyTickets({
     loadCategories();
   }, []);
 
-  // Reload tickets whenever requester or filters change
+  // Reload tickets whenever filters change. Ownership is enforced
+  // server-side from the authenticated session (BR-03) — there is no
+  // client-supplied requesterId to gate on anymore.
   useEffect(() => {
-    if (!currentRequester) {
-      setTickets([]);
-      return;
-    }
-
-    const requesterId = currentRequester.id;
-
     async function loadTickets() {
       setLoading(true);
       setError("");
 
       try {
         const result = await getMyTickets({
-          requesterId,
           search,
           categoryId,
           priority: requestedPriority,
@@ -110,7 +101,6 @@ export default function MyTickets({
 
     loadTickets();
   }, [
-    currentRequester,
     search,
     categoryId,
     requestedPriority,
@@ -210,11 +200,18 @@ export default function MyTickets({
   // Helper for rendering status badges
   function renderStatusBadge(statusStr: string) {
     const styles: Record<string, { bg: string; color: string; label: string }> = {
-      NEW: { bg: "#E0F2FE", color: "#0369A1", label: "Open" },
+      NEW: { bg: "#E0F2FE", color: "#0369A1", label: "New" },
+      OPEN: { bg: "#E0F2FE", color: "#0369A1", label: "Open" },
       IN_PROGRESS: { bg: "#DCFCE7", color: "#15803D", label: "In Progress" },
-      PENDING: { bg: "#FEF3C7", color: "#B45309", label: "Pending" },
+      WAITING_FOR_REQUESTER: {
+        bg: "#FEF3C7",
+        color: "#B45309",
+        label: "Waiting for You",
+      },
       RESOLVED: { bg: "#DCFCE7", color: "#15803D", label: "Resolved" },
       CLOSED: { bg: "#EEF2F0", color: "#5A6E65", label: "Closed" },
+      REOPENED: { bg: "#FEE2E2", color: "#B91C1C", label: "Reopened" },
+      CANCELLED: { bg: "#EEF2F0", color: "#5A6E65", label: "Cancelled" },
     };
 
     const style = styles[statusStr] || {
@@ -230,22 +227,6 @@ export default function MyTickets({
       >
         {style.label}
       </span>
-    );
-  }
-
-  if (!currentRequester) {
-    return (
-      <div
-        className="alert mb-4"
-        style={{
-          color: "#D97706",
-          backgroundColor: "#FEF3C7",
-          border: "1px solid #FCD34D",
-          borderRadius: "8px",
-        }}
-      >
-        Please select a Development Requester first.
-      </div>
     );
   }
 
@@ -412,11 +393,14 @@ export default function MyTickets({
                 style={{ borderColor: "#C8D4CE" }}
               >
                 <option value="">All Statuses</option>
-                <option value="NEW">Open</option>
+                <option value="NEW">New</option>
+                <option value="OPEN">Open</option>
                 <option value="IN_PROGRESS">In Progress</option>
-                <option value="PENDING">Pending</option>
+                <option value="WAITING_FOR_REQUESTER">Waiting for You</option>
                 <option value="RESOLVED">Resolved</option>
                 <option value="CLOSED">Closed</option>
+                <option value="REOPENED">Reopened</option>
+                <option value="CANCELLED">Cancelled</option>
               </select>
             </div>
 
@@ -625,13 +609,13 @@ export default function MyTickets({
                       {renderPriorityBadge(ticket.requestedPriority)}
                     </td>
                     <td data-label="IT Priority">
-                      {renderPriorityBadge((ticket as any).itPriority)}
+                      {renderPriorityBadge(ticket.itPriority)}
                     </td>
                     <td data-label="Current Status">
                       {renderStatusBadge(ticket.currentStatus)}
                     </td>
                     <td data-label="Ticket Owner" className="small" style={{ color: "#1A2E26" }}>
-                      {(ticket as any).assignedToName || (ticket as any).ownerName || "Unassigned"}
+                      {ticket.ownerName ?? "Unassigned"}
                     </td>
                     <td
                       data-label="Last Updated"

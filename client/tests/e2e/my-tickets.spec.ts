@@ -1,18 +1,9 @@
 import { test, expect } from "@playwright/test";
+import { loginAsRequester, REQUESTER_A } from "./helpers/auth";
 
 test.describe("My Tickets", () => {
   async function selectAlice(page: any) {
-    await page.goto("/");
-
-    const requesterSelect = page.locator("#requester-select");
-
-    await expect(requesterSelect).toBeVisible();
-
-    await requesterSelect.selectOption({
-      label: "Alice Johnson",
-    });
-
-    await page.getByRole("button", { name: /Continue/i }).click();
+    await loginAsRequester(page, REQUESTER_A.email);
   }
 
   async function createTicket(
@@ -475,3 +466,4 @@ test.describe("My Tickets", () => {
     ).toBeVisible();
   });
 });
+

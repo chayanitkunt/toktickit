@@ -116,31 +116,70 @@ describe("Attachment regression after migration", () => {
 });
 
 describe("Seed idempotency", () => {
+  // The seeded rows are the only ones whose identity is fixed and known in
+  // advance (5 ticketNumbers, 2 comment ids, 2 note ids). Other suites in
+  // this shared, non-transactional test database — and, in local dev, a
+  // separately running e2e/Playwright run against the same Postgres
+  // instance — create their own Tickets/Comments/Notes with server-assigned
+  // ids at the same time tests are executing. A raw `prisma.ticket.count()`
+  // (etc.) is therefore not a reliable idempotency signal: it can drift by
+  // however many *unrelated* rows another process happens to insert between
+  // this test's two `main()` calls, which has nothing to do with whether
+  // seeding itself is idempotent. Scoping each count to the seed's own known
+  // identifiers isolates the assertion to exactly what this test claims to
+  // verify.
+  const SEEDED_TICKET_NUMBERS = [
+    "TKT-2026-000001",
+    "TKT-SEED-000002",
+    "TKT-SEED-000003",
+    "TKT-SEED-000004",
+    "TKT-SEED-000005",
+  ];
+  const SEEDED_COMMENT_IDS = [1, 2];
+  const SEEDED_NOTE_IDS = [1, 2];
+
+  async function countSeededRows() {
+    const prisma = getPrisma();
+
+    const [users, tickets, comments, notes] = await Promise.all([
+      prisma.user.count(),
+      prisma.ticket.count({
+        where: { ticketNumber: { in: SEEDED_TICKET_NUMBERS } },
+      }),
+      prisma.ticketComment.count({
+        where: { id: { in: SEEDED_COMMENT_IDS } },
+      }),
+      prisma.ticketNote.count({ where: { id: { in: SEEDED_NOTE_IDS } } }),
+    ]);
+
+    return { users, tickets, comments, notes };
+  }
+
   it(
     "does not duplicate users, tickets, comments, or notes when main() runs twice",
     async () => {
-      const prisma = getPrisma();
       const { main } = await import("../../prisma/seed.js");
 
       // The test DB is already seeded once by the global test setup, so this
       // exercises the second and third runs back to back.
       await main();
-      const usersAfterFirst = await prisma.user.count();
-      const ticketsAfterFirst = await prisma.ticket.count();
-      const commentsAfterFirst = await prisma.ticketComment.count();
-      const notesAfterFirst = await prisma.ticketNote.count();
+      const afterFirst = await countSeededRows();
 
       await main();
-      const usersAfterSecond = await prisma.user.count();
-      const ticketsAfterSecond = await prisma.ticket.count();
-      const commentsAfterSecond = await prisma.ticketComment.count();
-      const notesAfterSecond = await prisma.ticketNote.count();
+      const afterSecond = await countSeededRows();
 
-      expect(usersAfterFirst).toBeGreaterThan(0);
-      expect(usersAfterSecond).toBe(usersAfterFirst);
-      expect(ticketsAfterSecond).toBe(ticketsAfterFirst);
-      expect(commentsAfterSecond).toBe(commentsAfterFirst);
-      expect(notesAfterSecond).toBe(notesAfterFirst);
+      expect(afterFirst.users).toBeGreaterThan(0);
+      // Total user count is still checked exactly: unlike Tickets/Comments/
+      // Notes, every User this codebase creates goes through seed.ts's own
+      // upsert-by-email, so no other suite can inflate this count between
+      // the two calls.
+      expect(afterSecond.users).toBe(afterFirst.users);
+      expect(afterSecond.tickets).toBe(SEEDED_TICKET_NUMBERS.length);
+      expect(afterSecond.comments).toBe(SEEDED_COMMENT_IDS.length);
+      expect(afterSecond.notes).toBe(SEEDED_NOTE_IDS.length);
+      expect(afterFirst.tickets).toBe(afterSecond.tickets);
+      expect(afterFirst.comments).toBe(afterSecond.comments);
+      expect(afterFirst.notes).toBe(afterSecond.notes);
     },
     15000,
   );

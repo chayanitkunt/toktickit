@@ -48,6 +48,16 @@ export async function main() {
     { name: "Charlie Brown", email: "charlie@example.com", role: "REQUESTER" as const, isActive: false },
     { name: "Diana Prince", email: "diana@example.com", role: "REQUESTER" as const, isActive: true },
     { name: "Ethan Hunt", email: "ethan@example.com", role: "REQUESTER" as const, isActive: true },
+    // Issue 4 — dedicated automation accounts for the Lab 3 Requester
+    // regression suite (server/tests/lab-03/authorization.api.test.ts and
+    // the client e2e specs). Unlike the demo accounts above, these two
+    // never require a password change, so ownership/authorization tests
+    // can log in and go straight to work without a change-password detour
+    // that would otherwise mutate shared demo-account credentials on every
+    // test run. They still count toward, and are additional to, the
+    // handout's minimum of 4 active + 1 inactive Requester (§5.3).
+    { name: "Quinn Tester", email: "quinn.requester@example.com", role: "REQUESTER" as const, isActive: true },
+    { name: "Riley Tester", email: "riley.requester@example.com", role: "REQUESTER" as const, isActive: true },
     { name: "Michael Brown", email: "michael.brown@tiktockit.com", role: "IT_STAFF" as const, isActive: true },
     { name: "Sarah Johnson", email: "sarah.johnson@tiktockit.com", role: "IT_STAFF" as const, isActive: true },
     { name: "David Lee", email: "david.lee@tiktockit.com", role: "IT_STAFF" as const, isActive: true },
@@ -57,9 +67,25 @@ export async function main() {
 
   for (const u of users) {
     // The seeded Administrator doesn't need to change password on first
-    // login, so a fresh checkout can exercise /admin/users immediately;
-    // everyone else follows the normal Lab 3 flow.
-    const mustChangePassword = u.role !== "ADMINISTRATOR";
+    // login, so a fresh checkout can exercise /admin/users immediately.
+    // The two dedicated automation accounts (Quinn/Riley) are exempt for
+    // the same reason — see the comment next to their entry above.
+    // Everyone else follows the normal Lab 3 mandatory-first-login flow.
+    const automationEmails = [
+      "quinn.requester@example.com",
+      "riley.requester@example.com",
+      // Issue 4 — server/tests/lab-03/authorization.api.test.ts and the
+      // client e2e specs log in as this specific seeded IT Staff account
+      // to exercise IT Staff read/post access to Public Comments. Exempt
+      // it from the mandatory first-login change for the same reason as
+      // Quinn/Riley above. Sarah, David, and Kevin stay on the normal
+      // mustChangePassword=true path, so AC-02's mandatory-password-change
+      // flow can still be demonstrated end-to-end with a real IT Staff
+      // account for grading evidence.
+      "michael.brown@tiktockit.com",
+    ];
+    const mustChangePassword =
+      u.role !== "ADMINISTRATOR" && !automationEmails.includes(u.email);
 
     await prisma.user.upsert({
       where: { email: u.email },
@@ -313,6 +339,7 @@ export async function main() {
       removedReason: null,
     },
     create: {
+      id: 1,
       ticketId: ticket1.id,
       fileName: "seed-test-attachment.txt",
       fileSize: fs.statSync(attachmentPath).size,
@@ -320,6 +347,33 @@ export async function main() {
       storagePath: attachmentPath,
     },
   });
+
+  // -------------------------------------------------------------------
+  // Issue 4 fix — resync autoincrement sequences.
+  //
+  // TicketComment, TicketNote, and Attachment above are upserted with
+  // explicit `id: 1` / `id: 2` values so re-running the seed is
+  // idempotent. But INSERTing an explicit id never advances Postgres's
+  // underlying identity sequence — only nextval() (used by a plain
+  // `create()` with no id) does that. Left alone, the very first REAL
+  // comment/note/attachment created by the app (e.g. a Requester posting
+  // a Public Comment) tries id=1 again and fails with a unique-constraint
+  // violation, which the route's catch-all turns into an opaque 500. This
+  // realigns each sequence with the actual max id currently in the table.
+  // -------------------------------------------------------------------
+  async function resyncIdSequence(tableName: string) {
+    await prisma.$executeRawUnsafe(
+      `SELECT setval(
+         pg_get_serial_sequence('"${tableName}"', 'id'),
+         COALESCE((SELECT MAX(id) FROM "${tableName}"), 1),
+         true
+       )`
+    );
+  }
+
+  await resyncIdSequence("TicketComment");
+  await resyncIdSequence("TicketNote");
+  await resyncIdSequence("Attachment");
 
   console.log(
     "Seed complete: categories, related systems, users (Requester/IT Staff/Administrator), " +

@@ -3,14 +3,12 @@ import * as api from "../api";
 import type { Category, RelatedSystem, RequestedPriority } from "../api";
 
 interface CreateTicketProps {
-  requesterId: number;
   onCreated?: () => void;
   onSuccess?: () => void;
   onCancel: () => void;
 }
 
 export default function CreateTicket({
-  requesterId,
   onCreated,
   onSuccess,
   onCancel,
@@ -92,7 +90,7 @@ export default function CreateTicket({
     try {
       setSubmitting(true);
       setError("");
-      const created = await api.createTicket(requesterId, {
+      const created = await api.createTicket({
         categoryId: Number(categoryId),
         relatedSystemId: Number(relatedSystemId),
         requestedPriority: priority,
@@ -349,3 +347,4 @@ export default function CreateTicket({
     </div>
   );
 }
+

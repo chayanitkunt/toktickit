@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { app } from "../../src/app.js";
+import { loginAsRequesterA } from "../helpers/authClient.js";
 
-// Charlie Brown is seeded as inactive (see prisma/seed.ts) and must be
-// rejected by ticket creation (BR-04).
-const INACTIVE_REQUESTER_ID = "3";
-const ACTIVE_REQUESTER_ID = "1";
+// ---------------------------------------------------------------------------
+// Issue 4 — migrated from X-Requester-Id to the authenticated session.
+// Ownership now comes from req.currentUser (BR-03); there is no longer a
+// client-suppliable requester identity to gate on. The old
+// "rejects an inactive Requester with 400" case is superseded by
+// tests/lab-03/auth.api.test.ts (an inactive account can't even log in) and
+// is intentionally not repeated here.
+// ---------------------------------------------------------------------------
 
 async function getReferenceIds() {
   const categoriesResponse = await request(app).get("/api/categories");
@@ -22,10 +27,10 @@ async function getReferenceIds() {
 describe("POST /api/tickets — creation (AC-01)", () => {
   it("creates a ticket and returns 201 with a generated ticket number and NEW status", async () => {
     const { categoryId, relatedSystemId } = await getReferenceIds();
+    const agent = await loginAsRequesterA();
 
-    const response = await request(app)
+    const response = await agent
       .post("/api/tickets")
-      .set("X-Requester-Id", ACTIVE_REQUESTER_ID)
       .field("categoryId", categoryId)
       .field("relatedSystemId", relatedSystemId)
       .field("summary", "Laptop battery drains quickly")
@@ -39,15 +44,17 @@ describe("POST /api/tickets — creation (AC-01)", () => {
     expect(response.body).toHaveProperty("id");
     expect(response.body.ticketNumber).toMatch(/^TKT-\d{4}-\d{6}$/);
     expect(response.body.currentStatus).toBe("NEW");
-    expect(response.body.requesterId).toBe(Number(ACTIVE_REQUESTER_ID));
+
+    const me = await agent.get("/api/auth/me");
+    expect(response.body.requesterId).toBe(me.body.id);
   });
 
   it("accepts a valid attachment submitted at creation time", async () => {
     const { categoryId, relatedSystemId } = await getReferenceIds();
+    const agent = await loginAsRequesterA();
 
-    const response = await request(app)
+    const response = await agent
       .post("/api/tickets")
-      .set("X-Requester-Id", ACTIVE_REQUESTER_ID)
       .field("categoryId", categoryId)
       .field("relatedSystemId", relatedSystemId)
       .field("summary", "Cannot connect to VPN from home")
@@ -68,44 +75,50 @@ describe("POST /api/tickets — creation (AC-01)", () => {
   });
 });
 
-describe("POST /api/tickets — requester context validation", () => {
-  it("rejects a missing X-Requester-Id header with 400", async () => {
+describe("POST /api/tickets — requester context validation (AC-05/BR-01)", () => {
+  it("rejects an unauthenticated request with 401", async () => {
     const { categoryId, relatedSystemId } = await getReferenceIds();
 
     const response = await request(app)
       .post("/api/tickets")
       .field("categoryId", categoryId)
       .field("relatedSystemId", relatedSystemId)
-      .field("summary", "Missing requester header test")
-      .field("description", "This request has no X-Requester-Id header set.")
+      .field("summary", "No session cookie test")
+      .field("description", "This request carries no authenticated session at all.")
       .field("requestedPriority", "LOW");
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(401);
+    expect(response.body.code).toBe("not_authenticated");
   });
 
-  it("rejects an inactive Requester with 400 (BR-04)", async () => {
+  it("rejects a request from an authenticated non-Requester (e.g. Administrator) with 403", async () => {
     const { categoryId, relatedSystemId } = await getReferenceIds();
 
-    const response = await request(app)
+    const staffAgent = request.agent(app);
+    await staffAgent
+      .post("/api/auth/login")
+      .send({ email: "jennifer.anderson@tiktockit.com", password: "ChangeMe123!" });
+
+    const response = await staffAgent
       .post("/api/tickets")
-      .set("X-Requester-Id", INACTIVE_REQUESTER_ID)
       .field("categoryId", categoryId)
       .field("relatedSystemId", relatedSystemId)
-      .field("summary", "Inactive requester test ticket")
-      .field("description", "This ticket is submitted by an inactive requester and must be rejected.")
+      .field("summary", "Administrator should not create tickets")
+      .field("description", "Only Requesters are permitted to create tickets in Lab 3.")
       .field("requestedPriority", "LOW");
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(403);
+    expect(response.body.code).toBe("forbidden");
   });
 });
 
 describe("POST /api/tickets — field validation (BR-05)", () => {
   it("rejects a Summary shorter than 10 characters", async () => {
     const { categoryId, relatedSystemId } = await getReferenceIds();
+    const agent = await loginAsRequesterA();
 
-    const response = await request(app)
+    const response = await agent
       .post("/api/tickets")
-      .set("X-Requester-Id", ACTIVE_REQUESTER_ID)
       .field("categoryId", categoryId)
       .field("relatedSystemId", relatedSystemId)
       .field("summary", "short")
@@ -118,10 +131,10 @@ describe("POST /api/tickets — field validation (BR-05)", () => {
 
   it("rejects a Description shorter than 20 characters", async () => {
     const { categoryId, relatedSystemId } = await getReferenceIds();
+    const agent = await loginAsRequesterA();
 
-    const response = await request(app)
+    const response = await agent
       .post("/api/tickets")
-      .set("X-Requester-Id", ACTIVE_REQUESTER_ID)
       .field("categoryId", categoryId)
       .field("relatedSystemId", relatedSystemId)
       .field("summary", "Description too short test")
@@ -134,10 +147,10 @@ describe("POST /api/tickets — field validation (BR-05)", () => {
 
   it("rejects an invalid Requested Priority value", async () => {
     const { categoryId, relatedSystemId } = await getReferenceIds();
+    const agent = await loginAsRequesterA();
 
-    const response = await request(app)
+    const response = await agent
       .post("/api/tickets")
-      .set("X-Requester-Id", ACTIVE_REQUESTER_ID)
       .field("categoryId", categoryId)
       .field("relatedSystemId", relatedSystemId)
       .field("summary", "Invalid priority value test")
@@ -150,10 +163,10 @@ describe("POST /api/tickets — field validation (BR-05)", () => {
 
   it("rejects a missing/unknown categoryId", async () => {
     const { relatedSystemId } = await getReferenceIds();
+    const agent = await loginAsRequesterA();
 
-    const response = await request(app)
+    const response = await agent
       .post("/api/tickets")
-      .set("X-Requester-Id", ACTIVE_REQUESTER_ID)
       .field("categoryId", 999999)
       .field("relatedSystemId", relatedSystemId)
       .field("summary", "Unknown category id test")
@@ -166,10 +179,10 @@ describe("POST /api/tickets — field validation (BR-05)", () => {
 
   it("rejects a missing/unknown relatedSystemId", async () => {
     const { categoryId } = await getReferenceIds();
+    const agent = await loginAsRequesterA();
 
-    const response = await request(app)
+    const response = await agent
       .post("/api/tickets")
-      .set("X-Requester-Id", ACTIVE_REQUESTER_ID)
       .field("categoryId", categoryId)
       .field("relatedSystemId", 999999)
       .field("summary", "Unknown related system id test")
@@ -184,10 +197,10 @@ describe("POST /api/tickets — field validation (BR-05)", () => {
 describe("POST /api/tickets — attachment rules (AC-04, AC-05, AC-06)", () => {
   it("rejects an unsupported attachment type with 400 (BR-06)", async () => {
     const { categoryId, relatedSystemId } = await getReferenceIds();
+    const agent = await loginAsRequesterA();
 
-    const response = await request(app)
+    const response = await agent
       .post("/api/tickets")
-      .set("X-Requester-Id", ACTIVE_REQUESTER_ID)
       .field("categoryId", categoryId)
       .field("relatedSystemId", relatedSystemId)
       .field("summary", "Invalid attachment type test")
@@ -204,10 +217,10 @@ describe("POST /api/tickets — attachment rules (AC-04, AC-05, AC-06)", () => {
 
   it("rejects more than 5 attachments submitted at creation time (BR-08)", async () => {
     const { categoryId, relatedSystemId } = await getReferenceIds();
+    const agent = await loginAsRequesterA();
 
-    let req = request(app)
+    let req = agent
       .post("/api/tickets")
-      .set("X-Requester-Id", ACTIVE_REQUESTER_ID)
       .field("categoryId", categoryId)
       .field("relatedSystemId", relatedSystemId)
       .field("summary", "Too many attachments test")
@@ -227,3 +240,4 @@ describe("POST /api/tickets — attachment rules (AC-04, AC-05, AC-06)", () => {
     expect(response.status).toBe(400);
   });
 });
+
