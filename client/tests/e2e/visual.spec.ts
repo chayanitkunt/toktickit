@@ -4,6 +4,25 @@ import path from "path";
 import fs from "fs";
 import { loginAsRequester, REQUESTER_A } from "./helpers/auth";
 
+// Issue 8 — Lab 3 seeded IT Staff / Administrator accounts used for the
+// staff-queue / staff-ticket-detail / user-management screenshots below.
+// Same fake local-dev password as every other seeded account (never a real
+// credential) — see server/prisma/seed.ts.
+const SEED_PASSWORD = "ChangeMe123!";
+const STAFF_EMAIL = "michael.brown@tiktockit.com"; // mustChangePassword: false
+const ADMIN_EMAIL = "jennifer.anderson@tiktockit.com"; // mustChangePassword: false
+
+async function loginAsStaffOrAdmin(page: Page, email: string) {
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: /sign in to your account/i })
+  ).toBeVisible();
+
+  await page.getByLabel(/email address/i).fill(email);
+  await page.getByLabel(/^password$/i).fill(SEED_PASSWORD);
+  await page.getByRole("button", { name: /sign in/i }).click();
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const screenshotsRoot = path.resolve(
   __dirname,
@@ -72,7 +91,7 @@ test.describe("Visual QA screenshots", () => {
 
     await page.getByRole("main").getByRole("button", {
       name: "+ Create Ticket",
-    }).click();
+    }).first().click();
 
     await expect(
       page.getByRole("heading", { name: "Create Ticket" })
@@ -118,7 +137,7 @@ test.describe("Visual QA screenshots", () => {
 
     await page.getByRole("main").getByRole("button", {
       name: "+ Create Ticket",
-    }).click();
+    }).first().click();
 
     await expect(
       page.getByRole("heading", { name: "Create Ticket" })
@@ -164,5 +183,98 @@ test.describe("Visual QA screenshots", () => {
       fullPage: true,
     });
   });
-});
 
+  // -------------------------------------------------------------------
+  // Issue 8 — GitHub Issue #35: staff-queue, staff-ticket-detail, and
+  // user-management screenshots (§8.3–§8.5 of the Lab 3 handout).
+  // -------------------------------------------------------------------
+
+  test("IT Staff Ticket Queue screen", async ({ page }, testInfo) => {
+    await loginAsStaffOrAdmin(page, STAFF_EMAIL);
+
+    await expect(
+      page.getByRole("heading", { name: "My Queue", exact: true })
+    ).toBeVisible();
+
+    await waitForSpinnerToClear(page);
+    await expect(page.locator("tbody tr").first()).toBeVisible();
+
+    await page.screenshot({
+      path: screenshotPath("staff-queue", "list", testInfo.project.name),
+      fullPage: true,
+    });
+  });
+
+  test("IT Staff Ticket Detail screen", async ({ page }, testInfo) => {
+    await loginAsStaffOrAdmin(page, STAFF_EMAIL);
+
+    await expect(
+      page.getByRole("heading", { name: "My Queue", exact: true })
+    ).toBeVisible();
+
+    await waitForSpinnerToClear(page);
+
+    const row = page.locator("tbody tr").first();
+    await expect(row).toBeVisible();
+    await row.getByRole("button").first().click();
+
+    await expect(page.getByLabel(/ticket owner/i)).toBeVisible();
+    await waitForSpinnerToClear(page);
+
+    await page.screenshot({
+      path: screenshotPath("staff-ticket-detail", "view", testInfo.project.name),
+      fullPage: true,
+    });
+
+    // Also capture the Internal Notes tab open, since it's the panel that
+    // must look visually distinct from Public Comments (BR-04).
+    await page.getByRole("tab", { name: /internal notes/i }).click();
+
+    await page.screenshot({
+      path: screenshotPath(
+        "staff-ticket-detail",
+        "internal-notes",
+        testInfo.project.name
+      ),
+      fullPage: true,
+    });
+  });
+
+  test("Administrator User Management screen — list and Create User panel", async ({
+    page,
+  }, testInfo) => {
+    await loginAsStaffOrAdmin(page, ADMIN_EMAIL);
+
+    await expect(
+      page.getByRole("heading", { name: "My Queue", exact: true })
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: /^users$/i }).click();
+
+    await expect(
+      page.getByRole("heading", { name: "Users", exact: true })
+    ).toBeVisible();
+
+    await waitForSpinnerToClear(page);
+
+    await page.screenshot({
+      path: screenshotPath("user-management", "list", testInfo.project.name),
+      fullPage: true,
+    });
+
+    await page.getByRole("button", { name: /create user/i }).click();
+
+    await expect(
+      page.getByRole("dialog", { name: /create new user/i })
+    ).toBeVisible();
+
+    await page.screenshot({
+      path: screenshotPath(
+        "user-management",
+        "create-panel",
+        testInfo.project.name
+      ),
+      fullPage: true,
+    });
+  });
+});

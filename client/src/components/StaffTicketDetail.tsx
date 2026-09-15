@@ -148,7 +148,7 @@ export default function StaffTicketDetail({
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [attachmentError, setAttachmentError] = useState("");
 
-  const loadTicket = useCallback(async () => {
+  const loadTicket = useCallback(async (isStale: () => boolean) => {
     setLoading(true);
     setError("");
     setNotFound(false);
@@ -160,12 +160,22 @@ export default function StaffTicketDetail({
         getEligibleOwners(),
       ]);
 
+      // Issue 8 (E2E-04) — guard against a stale/duplicate invocation.
+      // React StrictMode double-invokes effects on mount in development,
+      // so without this check a slower first call can resolve AFTER a
+      // faster second call (or after the user has already changed the
+      // Ticket Owner selection), silently reverting ownerSelection back
+      // to the server's original value.
+      if (isStale()) return;
+
       setTicket(ticketResult);
       setOwners(ownersResult);
       setOwnerSelection(
         ticketResult.owner ? String(ticketResult.owner.id) : ""
       );
     } catch (err) {
+      if (isStale()) return;
+
       const message =
         err instanceof Error ? err.message : "Unable to retrieve ticket";
 
@@ -180,7 +190,9 @@ export default function StaffTicketDetail({
         setError(message);
       }
     } finally {
-      setLoading(false);
+      if (!isStale()) {
+        setLoading(false);
+      }
     }
   }, [ticketId]);
 
@@ -213,7 +225,12 @@ export default function StaffTicketDetail({
   }, [ticketId]);
 
   useEffect(() => {
-    loadTicket();
+    let cancelled = false;
+    loadTicket(() => cancelled);
+
+    return () => {
+      cancelled = true;
+    };
   }, [loadTicket]);
 
   // Load each tab's data lazily the first time it's opened, then keep it

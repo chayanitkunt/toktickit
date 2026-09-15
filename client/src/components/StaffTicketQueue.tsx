@@ -17,6 +17,16 @@ type OwnerFilter = "me" | "unassigned" | "all";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
+// Issue 8 — same responsive page-size behavior as MyTickets.tsx: a mobile
+// viewport gets a much smaller page (2 tickets) so a single Ticket Queue
+// screenshot/scroll doesn't have to show a long, unreadable list of
+// full-width cards stacked on top of each other.
+const MOBILE_BREAKPOINT = 767.98;
+
+function getPageSize() {
+  return window.innerWidth <= MOBILE_BREAKPOINT ? 2 : 10;
+}
+
 export default function StaffTicketQueue({
   onOpenTicket,
 }: StaffTicketQueueProps) {
@@ -24,7 +34,7 @@ export default function StaffTicketQueue({
   const [meta, setMeta] = useState<TicketListMeta>({
     total: 0,
     page: 1,
-    pageSize: 10,
+    pageSize: getPageSize(),
     totalPages: 0,
   });
 
@@ -45,6 +55,31 @@ export default function StaffTicketQueue({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [forbidden, setForbidden] = useState(false);
+
+  // Adjust page size for mobile/desktop — same pattern as MyTickets.tsx.
+  useEffect(() => {
+    function handleResize() {
+      const newPageSize = getPageSize();
+
+      setMeta((previous) => {
+        if (previous.pageSize === newPageSize) {
+          return previous;
+        }
+
+        return {
+          ...previous,
+          page: 1,
+          pageSize: newPageSize,
+        };
+      });
+    }
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
 
   // Load categories for the Category filter dropdown.
   useEffect(() => {
@@ -807,4 +842,3 @@ export default function StaffTicketQueue({
     </div>
   );
 }
-

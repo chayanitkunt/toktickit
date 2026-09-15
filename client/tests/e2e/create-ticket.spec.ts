@@ -8,7 +8,7 @@ test.describe("Create Ticket", () => {
     // Open Create Ticket
     await page.getByRole("main").getByRole("button", {
       name: "+ Create Ticket",
-    }).click();
+    }).first().click();
 
     await expect(
       page.getByRole("heading", { name: "Create Ticket" })
@@ -71,7 +71,7 @@ test.describe("Create Ticket", () => {
     // Open Create Ticket
     await page.getByRole("main").getByRole("button", {
       name: "+ Create Ticket",
-    }).click();
+    }).first().click();
 
     await expect(
       page.getByRole("heading", { name: "Create Ticket" })
@@ -115,4 +115,3 @@ test.describe("Create Ticket", () => {
     expect(fileName).toBe("test-attachment.png");
   });
 });
-
