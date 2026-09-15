@@ -70,7 +70,8 @@ referenced from `reviewer.md` and the submission PDF (Part 3).
 
 | Test ID | Type | Req/AC | What It Tests | Expected Result | File | Final |
 |---|---|---|---|---|---|---|
-| VIS-01 | Visual | §7/§9 | Desktop/tablet/mobile screenshots, all new screens | No clipping/overlap/horizontal overflow | `e2e/lab-03/*.spec.ts` (screenshot mode) + `artifacts/lab-03/screenshots/` | |
+| VIS-01 | Visual | §7/§9 | Desktop/tablet/mobile screenshots, all new screens | No clipping/overlap/horizontal overflow | `client/tests/e2e/visual.spec.ts` + `artifacts/lab-03/screenshots/` | |
+| VIS-02 | Visual | §7/§9 | Manual checklist: Zen Green consistency, role nav, badges, editable/read-only fields, focus, clipping/overlap, horizontal overflow, responsive reflow | All rows Pass at desktop/tablet/mobile | `docs/lab-03/visual-checklist.md` | |
 
 Every AC in `specification.md` maps to at least one row above. New rows are added as edge cases are
 discovered during implementation, not removed after the fact.
