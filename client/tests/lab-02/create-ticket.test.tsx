@@ -51,7 +51,7 @@ describe("CreateTicket", () => {
 
   it("loads Category and Related System options from the backend", async () => {
     render(
-      <CreateTicket requesterId={1} onCancel={() => {}} />
+      <CreateTicket onCancel={() => {}} />
     );
 
     expect(screen.getByText("Loading ticket form...")).toBeInTheDocument();
@@ -65,7 +65,7 @@ describe("CreateTicket", () => {
   it("shows field-level validation messages and does not submit when required fields are empty (AC-01 negative path)", async () => {
     const user = userEvent.setup();
 
-    render(<CreateTicket requesterId={1} onCancel={() => {}} />);
+    render(<CreateTicket onCancel={() => {}} />);
 
     const submitButton = await screen.findByRole("button", {
       name: "Create Ticket",
@@ -93,7 +93,7 @@ describe("CreateTicket", () => {
     const user = userEvent.setup();
     const onCreated = vi.fn();
 
-    render(<CreateTicket requesterId={1} onCancel={() => {}} onCreated={onCreated} />);
+    render(<CreateTicket onCancel={() => {}} onCreated={onCreated} />);
 
     await waitFor(() => {
       expect(screen.getByText("Hardware")).toBeInTheDocument();

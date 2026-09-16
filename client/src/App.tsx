@@ -1,31 +1,42 @@
 import { useState } from "react";
 import CreateTicket from "./components/CreateTicket";
 import MyTickets from "./components/MyTickets";
-import RequesterSelector from "./components/RequesterSelector";
 import TicketDetail from "./components/TicketDetail";
-import { useDevelopmentRequester } from "./DevelopmentRequesterContext";
+import Login from "./components/Login";
+import ChangePassword from "./components/ChangePassword";
+import StaffTicketQueue from "./components/StaffTicketQueue";
+import StaffTicketDetail from "./components/StaffTicketDetail";
+import UserManagement from "./components/UserManagement";
+import { useAuth } from "./AuthContext";
 
 type Screen =
-  | "requester"
   | "tickets"
   | "create"
-  | "detail";
+  | "detail"
+  | "queue"
+  | "staff-detail"
+  | "admin-users";
 
-export default function App() {
-  const { currentRequester } = useDevelopmentRequester();
+const ROLE_LABELS: Record<string, string> = {
+  REQUESTER: "Requester",
+  IT_STAFF: "IT Support",
+  ADMINISTRATOR: "Administrator",
+};
+
+function AuthenticatedShell() {
+  const { user, logout } = useAuth();
+
+  const isRequester = user?.role === "REQUESTER";
+  const isStaffOrAdmin =
+    user?.role === "IT_STAFF" || user?.role === "ADMINISTRATOR";
+  const isAdmin = user?.role === "ADMINISTRATOR";
 
   const [screen, setScreen] = useState<Screen>(
-    currentRequester ? "tickets" : "requester"
+    isStaffOrAdmin ? "queue" : "tickets"
   );
-
-  const [selectedTicketId, setSelectedTicketId] =
-    useState<number | null>(null);
-
-  function handleRequesterContinue() {
-    if (currentRequester) {
-      setScreen("tickets");
-    }
-  }
+  const [selectedTicketId, setSelectedTicketId] = useState<number | null>(
+    null
+  );
 
   function handleCreateTicket() {
     setScreen("create");
@@ -45,8 +56,28 @@ export default function App() {
     setScreen("tickets");
   }
 
-  function handleChangeRequester() {
-    setScreen("requester");
+  // Issue 5 — IT Staff Ticket Queue (GitHub Issue #32)
+  function handleOpenStaffTicket(ticketId: number) {
+    setSelectedTicketId(ticketId);
+    setScreen("staff-detail");
+  }
+
+  function handleBackToQueue() {
+    setSelectedTicketId(null);
+    setScreen("queue");
+  }
+
+  // Issue 7 — Administrator User Management (specification.md §5.2:
+  // Administrators may also perform IT Staff ticket operations, so "Users"
+  // is an additional nav destination alongside "My Queue" rather than a
+  // replacement for it).
+  function handleOpenUserManagement() {
+    setSelectedTicketId(null);
+    setScreen("admin-users");
+  }
+
+  async function handleLogout() {
+    await logout();
   }
 
   return (
@@ -88,8 +119,8 @@ export default function App() {
                 </h1>
               </div>
 
-              {/* Main Navigation */}
-              {currentRequester && screen !== "requester" && (
+              {/* Main Navigation — Requester only for now (see isRequester) */}
+              {isRequester && (
                 <nav
                   className="d-flex align-items-center gap-1 ms-2 ms-md-3"
                   aria-label="Main navigation"
@@ -127,21 +158,79 @@ export default function App() {
                   </button>
                 </nav>
               )}
+
+              {/* Main Navigation — IT Staff / Administrator (Issue 5) */}
+              {isStaffOrAdmin && (
+                <nav
+                  className="d-flex align-items-center gap-1 ms-2 ms-md-3"
+                  aria-label="Main navigation"
+                >
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={handleBackToQueue}
+                    style={{
+                      color: "#FFFFFF",
+                      border: "none",
+                      backgroundColor:
+                        screen === "queue" || screen === "staff-detail"
+                          ? "#0B7A46"
+                          : "transparent",
+                    }}
+                  >
+                    My Queue
+                  </button>
+
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={handleOpenUserManagement}
+                      style={{
+                        color: "#FFFFFF",
+                        border: "none",
+                        backgroundColor:
+                          screen === "admin-users"
+                            ? "#0B7A46"
+                            : "transparent",
+                      }}
+                    >
+                      Users
+                    </button>
+                  )}
+                </nav>
+              )}
             </div>
 
-            {/* Right: Requester Identity */}
-            {currentRequester && screen !== "requester" && (
-              <button
-                type="button"
-                onClick={handleChangeRequester}
-                className="btn btn-sm text-white border-white-50 ms-auto"
-                style={{
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {currentRequester.name}
-              </button>
-            )}
+            {/* Right: Authenticated identity + role + logout */}
+            <div className="d-flex align-items-center gap-2 ms-auto">
+              {user && (
+                <div
+                  className="d-flex align-items-center gap-2"
+                  data-testid="current-user-identity"
+                >
+                  <span
+                    className="text-white small text-end"
+                    style={{ lineHeight: 1.1 }}
+                  >
+                    <span className="fw-semibold d-block">{user.name}</span>
+                    <span
+                      className="badge"
+                      style={{ backgroundColor: "#0B7A46" }}
+                    >
+                      {ROLE_LABELS[user.role] ?? user.role}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-light"
+                    onClick={handleLogout}
+                  >
+                    Logout
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -154,37 +243,87 @@ export default function App() {
           margin: "0 auto",
         }}
       >
-        {screen === "requester" && (
-          <RequesterSelector
-            onContinue={handleRequesterContinue}
-          />
+        {!isRequester && !isStaffOrAdmin && (
+          <div
+            className="alert mb-0"
+            style={{
+              color: "#0369A1",
+              backgroundColor: "#E0F2FE",
+              border: "1px solid #7DD3FC",
+              borderRadius: "8px",
+            }}
+          >
+            This role's screens are not part of this Lab 3 increment yet.
+          </div>
         )}
 
-        {screen === "tickets" && currentRequester && (
+        {isStaffOrAdmin && screen === "queue" && (
+          <StaffTicketQueue onOpenTicket={handleOpenStaffTicket} />
+        )}
+
+        {isStaffOrAdmin &&
+          screen === "staff-detail" &&
+          selectedTicketId !== null && (
+            <StaffTicketDetail
+              ticketId={selectedTicketId}
+              onBack={handleBackToQueue}
+            />
+          )}
+
+        {isAdmin && screen === "admin-users" && <UserManagement />}
+
+        {isRequester && screen === "tickets" && (
           <MyTickets
             onCreateTicket={handleCreateTicket}
             onOpenTicket={handleOpenTicket}
           />
         )}
 
-       {screen === "create" && currentRequester && (
+        {isRequester && screen === "create" && (
           <CreateTicket
-            requesterId={currentRequester.id}
             onCancel={handleBackToTickets}
             onCreated={handleTicketCreated}
           />
         )}
 
-        {screen === "detail" &&
-          currentRequester &&
-          selectedTicketId !== null && (
-            <TicketDetail
-              ticketId={selectedTicketId}
-              requesterId={currentRequester.id}
-              onBack={handleBackToTickets}
-            />
-          )}
+        {isRequester && screen === "detail" && selectedTicketId !== null && (
+          <TicketDetail
+            ticketId={selectedTicketId}
+            onBack={handleBackToTickets}
+          />
+        )}
       </main>
     </div>
   );
+}
+
+function LoadingScreen() {
+  return (
+    <div
+      className="d-flex align-items-center justify-content-center"
+      style={{ minHeight: "100vh", backgroundColor: "#F5F7F6" }}
+    >
+      <div className="spinner-border" style={{ color: "#006B3C" }} role="status">
+        <span className="visually-hidden">Loading…</span>
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  if (!user) {
+    return <Login />;
+  }
+
+  if (user.mustChangePassword) {
+    return <ChangePassword />;
+  }
+
+  return <AuthenticatedShell />;
 }

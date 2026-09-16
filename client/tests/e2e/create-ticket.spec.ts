@@ -1,37 +1,14 @@
-import { test, expect, Page } from '@playwright/test';
-
-async function selectAliceRequester(page: Page) {
-  await page.goto("/");
-
-  await page.evaluate(() => localStorage.clear());
-  await page.reload();
-
-  const requesterSelect = page.locator("#requester-select");
-  await expect(requesterSelect).toBeVisible();
-
-  await expect(requesterSelect.locator("option")).toContainText([
-    "Alice Johnson",
-  ]);
-
-  await requesterSelect.selectOption({
-    label: "Alice Johnson",
-  });
-
-  await page.getByRole("button", { name: /Continue/i }).click();
-
-  await expect(
-    page.getByRole("heading", { name: "My Tickets" })
-  ).toBeVisible();
-}
+import { test, expect } from '@playwright/test';
+import { loginAsRequester, REQUESTER_A } from "./helpers/auth";
 
 test.describe("Create Ticket", () => {
   test("can create a new ticket", async ({ page }) => {
-    await selectAliceRequester(page);
+    await loginAsRequester(page, REQUESTER_A.email);
 
     // Open Create Ticket
     await page.getByRole("main").getByRole("button", {
       name: "+ Create Ticket",
-    }).click();
+    }).first().click();
 
     await expect(
       page.getByRole("heading", { name: "Create Ticket" })
@@ -89,12 +66,12 @@ test.describe("Create Ticket", () => {
   });
 
   test("validates ticket attachments", async ({ page }) => {
-    await selectAliceRequester(page);
+    await loginAsRequester(page, REQUESTER_A.email);
 
     // Open Create Ticket
     await page.getByRole("main").getByRole("button", {
       name: "+ Create Ticket",
-    }).click();
+    }).first().click();
 
     await expect(
       page.getByRole("heading", { name: "Create Ticket" })

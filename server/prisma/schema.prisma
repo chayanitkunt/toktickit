@@ -15,14 +15,32 @@ model Category {
   tickets Ticket[]
 }
 
-model Requester {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
+// Lab 3 — replaces the Lab 2 Requester model as the identity table for all
+// three roles. Migrated from Requester via
+// prisma/migrations/20260913000000_user_model_and_lab3_workflow.
+enum Role {
+  REQUESTER
+  IT_STAFF
+  ADMINISTRATOR
+}
 
-  tickets Ticket[]
+model User {
+  id                 Int      @id @default(autoincrement())
+  name               String
+  email              String   @unique
+  passwordHash       String
+  role               Role
+  isActive           Boolean  @default(true)
+  mustChangePassword Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  ticketsRequested Ticket[]        @relation("TicketRequester")
+  ticketsOwned     Ticket[]        @relation("TicketOwner")
+  comments         TicketComment[]
+  notes            TicketNote[]
+
+  @@index([role])
 }
 
 model RelatedSystem {
@@ -40,35 +58,79 @@ enum RequestedPriority {
   HIGH
 }
 
+// Lab 3 extends this enum: OPEN, REOPENED, and CANCELLED are new;
+// PENDING was renamed to WAITING_FOR_REQUESTER during migration (existing
+// rows keep their data — only the label changed).
 enum CurrentStatus {
   NEW
+  OPEN
   IN_PROGRESS
+  WAITING_FOR_REQUESTER
   RESOLVED
   CLOSED
-  PENDING
+  REOPENED
+  CANCELLED
 }
 
 model Ticket {
-  id                Int               @id @default(autoincrement())
-  ticketNumber      String            @unique
-  requesterId       Int
-  categoryId        Int
-  relatedSystemId   Int
-  summary           String
-  description       String
-  requestedPriority RequestedPriority
-  currentStatus     CurrentStatus     @default(NEW)
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  id                     Int                @id @default(autoincrement())
+  ticketNumber           String             @unique
+  requesterId            Int
+  ownerId                Int?
+  categoryId             Int
+  relatedSystemId        Int
+  summary                String
+  description            String
+  requestedPriority      RequestedPriority
+  itPriority             RequestedPriority?
+  currentStatus          CurrentStatus      @default(NEW)
+  problemAppearsResolved Boolean            @default(false)
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
 
-  requester     Requester     @relation(fields: [requesterId], references: [id])
-  category      Category      @relation(fields: [categoryId], references: [id])
-  relatedSystem RelatedSystem @relation(fields: [relatedSystemId], references: [id])
+  requester     User            @relation("TicketRequester", fields: [requesterId], references: [id])
+  owner         User?           @relation("TicketOwner", fields: [ownerId], references: [id])
+  category      Category        @relation(fields: [categoryId], references: [id])
+  relatedSystem RelatedSystem   @relation(fields: [relatedSystemId], references: [id])
   attachments   Attachment[]
+  comments      TicketComment[]
+  notes         TicketNote[]
 
   @@index([requesterId])
+  @@index([ownerId])
   @@index([categoryId])
   @@index([relatedSystemId])
+  @@index([currentStatus])
+}
+
+// Public Comments (BR-04): visible to the ticket's Requester, IT Staff, and
+// Administrator. Append-only in Lab 3.
+model TicketComment {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  authorId  Int
+  content   String
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+  author User   @relation(fields: [authorId], references: [id])
+
+  @@index([ticketId])
+}
+
+// Internal Notes (BR-04): visible only to IT Staff and Administrator.
+// Append-only in Lab 3.
+model TicketNote {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  authorId  Int
+  content   String
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+  author User   @relation(fields: [authorId], references: [id])
+
+  @@index([ticketId])
 }
 
 model Attachment {

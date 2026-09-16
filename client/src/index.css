@@ -60,3 +60,31 @@
     content: none;
   }
 }
+
+/*
+ * Ticket Detail — Requester view (Issue #45).
+ *
+ * ReadOnlyField and the Description box previously used a fixed
+ * `minHeight` (38px / 80px) that was sized for desktop content and made
+ * every stacked section on the page taller than it needed to be on
+ * narrow phones, even for short values like "Hardware" or "Medium".
+ * Below the same 768px breakpoint used for the ticket table/card
+ * transform, let these boxes size to their content instead.
+ */
+.zg-readonly-value {
+  min-height: 38px;
+}
+
+.zg-description-box {
+  min-height: 80px;
+}
+
+@media (max-width: 767.98px) {
+  .zg-readonly-value {
+    min-height: 0;
+  }
+
+  .zg-description-box {
+    min-height: 48px;
+  }
+}
