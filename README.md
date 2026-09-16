@@ -5,9 +5,15 @@ CPE 334, Introduction to Software Engineering in the Age of AI Agents.
 
 - **Lab 1** delivered the project foundation (health check API, Categories
   model, and a first read-only screen).
-- **Lab 2** delivers the Requester-facing ticketing MVP: Create Ticket, My
+- **Lab 2** delivered the Requester-facing ticketing MVP: Create Ticket, My
   Tickets, Requester Ticket Detail, and the Attachment lifecycle, built on a
   temporary Development Requester selector used in place of real login.
+- **Lab 3** replaces that temporary selector with real authentication and
+  role-based authorization for three roles — Requester, IT Staff, and
+  Administrator — and adds the first operational IT Staff Ticket Queue,
+  IT Staff Ticket Detail workflow, and a minimalist Administrator User
+  Management screen. All Lab 2 Requester functions continue to work using
+  the authenticated Requester identity.
 
 ## Technology Stack
 
@@ -25,23 +31,34 @@ CPE 334, Introduction to Software Engineering in the Age of AI Agents.
 toktickit/
 ├── client/
 │   ├── src/
-│   │   ├── components/       # CreateTicket, MyTickets, TicketDetail, RequesterSelector
-│   │   ├── DevelopmentRequesterContext.tsx
+│   │   ├── components/        # Login, ChangePassword, CreateTicket, MyTickets,
+│   │   │                       # TicketDetail, StaffTicketQueue, StaffTicketDetail,
+│   │   │                       # UserManagement, AuthVisuals
+│   │   ├── AuthContext.tsx     # Authenticated session state (replaces the old
+│   │   │                       # Development Requester context)
 │   │   └── api.ts
 │   └── tests/
-│       ├── lab-02/           # Vitest UI component tests
-│       └── e2e/              # Playwright E2E, responsive, and visual QA specs
+│       ├── lab-02/            # Vitest UI component tests
+│       ├── lab-03/            # Vitest UI component tests (Login, ChangePassword,
+│       │                       # StaffTicketQueue, StaffTicketDetail, UserManagement)
+│       └── e2e/               # Playwright E2E, responsive, and visual QA specs
+│           └── lab-03/        # Lab 3 auth, staff-ticket-flow, and admin E2E specs
 ├── server/
-│   ├── prisma/                # schema.prisma, migrations, seed.ts
-│   ├── src/                   # Express app and routes
+│   ├── prisma/                 # schema.prisma, migrations, seed.ts
+│   ├── src/                    # Express app and routes
 │   └── tests/
-│       └── lab-02/            # Vitest + Supertest API tests
+│       ├── lab-02/             # Vitest + Supertest API tests
+│       └── lab-03/             # Auth, authorization, staff queue/detail,
+│                                # comments/notes, and admin API tests
 ├── docs/
 │   ├── lab-01/
-│   └── lab-02/                # specification.md, tests.md, ui-spec.md,
-│                               # api-spec.md, reviewer.md, ai-use.md
+│   ├── lab-02/                 # specification.md, tests.md, ui-spec.md,
+│   │                            # api-spec.md, reviewer.md, ai-use.md
+│   └── lab-03/                 # specification.md, tests.md, ui-spec.md,
+│                                # api-spec.md, reviewer.md, ai-use.md
 ├── artifacts/
-│   └── lab-02/screenshots/    # Desktop/tablet/mobile visual QA evidence
+│   ├── lab-02/screenshots/     # Desktop/tablet/mobile visual QA evidence
+│   └── lab-03/screenshots/     # Desktop/tablet/mobile visual QA evidence
 ├── .gitignore
 └── README.md
 ```
@@ -103,11 +120,12 @@ cd client
 npx playwright test
 ```
 
-This suite runs every E2E, responsive-layout, and visual QA spec across
-three Playwright projects — `chromium` (desktop, 1280px), `tablet` (768px),
-and `mobile` (390px, table pagination check skipped by design since
-pagination is already covered on desktop/tablet). Screenshots are written to
-`artifacts/lab-02/screenshots/`.
+This suite runs every E2E, responsive-layout, and visual QA spec — Lab 2 and
+Lab 3 — across three Playwright projects — `chromium` (desktop, 1280px),
+`tablet` (768px), and `mobile` (390px, table pagination check skipped by
+design since pagination is already covered on desktop/tablet). Screenshots
+are written to `artifacts/lab-02/screenshots/` and
+`artifacts/lab-03/screenshots/` respectively.
 
 ```bash
 npx playwright show-report
@@ -144,27 +162,58 @@ opens the last HTML report.
   states, validation placement, button hierarchy, badges, and responsive
   rules, applied consistently across all Lab 2 screens.
 
+## Lab 3 Features
+
+- **Authentication & mandatory password change** — users sign in with email
+  and password; an account created with an initial password must set a new
+  one before entering the application. Sessions are invalidated on logout.
+- **Role-based access, enforced server-side** — three roles (Requester,
+  IT Staff, Administrator) each see only their permitted navigation and
+  actions. Every protected API endpoint enforces role and ownership checks
+  independently of the UI — a hidden button is never treated as
+  authorization.
+- **Requester regression** — the Development Requester selector is removed;
+  all Lab 2 Requester screens now use the authenticated identity. Requesters
+  can also post Public Comments and mark a problem as appearing resolved.
+- **IT Staff Ticket Queue** — a shared queue with search, filters, sorting,
+  and pagination for locating and prioritizing work, with clear ownership
+  and status/priority badges.
+- **IT Staff Ticket Detail** — claim or reassign ticket ownership, set IT
+  Priority, move a ticket through its permitted status transitions, and post
+  Public Comments or Internal Notes. Public Comments and Internal Notes are
+  visually distinct so private notes can't be mistaken for public ones.
+- **Administrator User Management** — a minimalist screen to view, search,
+  and filter users; create a user with one role and an initial password;
+  edit name/email/role/activation state; and set a new initial password. It
+  prevents duplicate emails, self-deactivation by the acting Administrator,
+  and removing the last active Administrator.
+
 ## Documentation
 
-Lab 2 documentation is available in:
+Lab 3 documentation is available in:
 
 ```text
-docs/lab-02/
+docs/lab-03/
 ```
 
 Including:
 
-- `specification.md` — Sprint goal, scope, functional requirements,
-  business rules, data model, API contract, acceptance criteria, and
-  Definition of Done.
-- `tests.md` — Planned-test table, acceptance-criterion traceability,
-  responsive/visual checklist, and final pass status.
-- `ui-spec.md` — Zen Green Theme tokens, component states, and
-  responsive/accessibility rules.
-- `api-spec.md` — REST endpoint paths, request/response contracts,
-  validation rules, and HTTP status codes.
-- `reviewer.md` — Peer review record (PR links, comments given/received,
-  responses, and approvals).
+- `specification.md` — Sprint 3 goal, scope, numbered functional
+  requirements and business rules, authorization matrix, data/API changes,
+  acceptance criteria, assumptions/decisions, and Definition of Done.
+- `tests.md` — Planned-test table with Acceptance-Criterion traceability,
+  actual test-file paths, final pass/fail status, regression coverage, and
+  authorization coverage across unit, API, UI component, E2E, and visual
+  tests.
+- `ui-spec.md` — Login/Change Password, IT Staff Ticket Queue, IT Staff
+  Ticket Detail, and Administrator User Management screen structure, modes,
+  and responsive rules, extending the Zen Green design language from Lab 2.
+- `api-spec.md` — Authentication, authorization, IT Staff, and
+  Administrator endpoint paths, request/response contracts, and status
+  codes.
+- `reviewer.md` — Peer review record (reviewer identity, PR links,
+  comments given/received, responses, and approvals).
 - `ai-use.md` — AI tool used, key prompt log, and reflection.
 
-Lab 1 documentation remains available in `docs/lab-01/`.
+Lab 2 documentation remains available in `docs/lab-02/`, and Lab 1
+documentation remains available in `docs/lab-01/`.
