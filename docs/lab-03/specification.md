@@ -262,7 +262,7 @@ duplicate staff-only comments endpoint.
 
 ## 10. Definition of Done
 - All FR/BR/AC above implemented and covered by at least one automated test in
-  `server/tests/lab-03/*`, `client/.../lab-03 tests/*`, and `e2e/lab-03/*`.
+  `server/tests/lab-03/*`, `client/tests/lab-03/*`, and `client/tests/e2e/lab-03/*`.
 - `npm run build` and full test suites (unit/API/UI/E2E) pass on `main`.
 - Lab 2 regression suite still passes unmodified (or updated only for the auth-context swap).
 - Seed script runs idempotently against a fresh database.
