@@ -25,6 +25,15 @@ List of feature-branch PRs authored by @chayanitkunt and merged into `lab3-stagi
 | #46 | fix: improve My Ticket responsive layout | fix/ticket-detail-responsive → lab3-staging | https://github.com/chayanitkunt/toktickit/pull/46 | @chayongchaya | ✅ Approved & Merged (commit `c50dd8b`) |
 | #47 | test: add Lab 3 E2E, responsive, and visual QA | test/8-lab3-e2e-visual-qa → lab3-staging | https://github.com/chayanitkunt/toktickit/pull/47 | @chayongchaya | ✅ Approved & Merged (commit `d4991e5`) |
 | #48 | fix: stabilize Lab 3 visual screenshots | fix/staff-ticket-detail-screenshot-wait → lab3-staging | https://github.com/chayanitkunt/toktickit/pull/48 | @chayongchaya | ✅ Approved & Merged (commit `b410f65`) |
+| #49 | docs: finalize Lab 3 documentation and deliverable evidence | docs/9-lab3-documentation-release → lab3-staging | https://github.com/chayanitkunt/toktickit/pull/49 | @chayongchaya | ✅ Approved & Merged (commit `5cf1def`) |
+
+### 2.1 Final Release PR (lab3-staging → main)
+
+| PR # | Title | Branch → Target | Link | Reviewer(s) | Approval Status |
+| --- | --- | --- | --- | --- | --- |
+| #50 | Release: Lab 3 — TokTickIT Roles, IT Staff Ticketing, and Admin Screens | lab3-staging → main | https://github.com/chayanitkunt/toktickit/pull/50 | @chayongchaya | ✅ Approved & Merged (commit `0c3a5c0`) |
+
+PR #50 is the final Lab 3 release step: it merges the fully-reviewed `lab3-staging` branch (23 commits, 10 feature/fix/test PRs from this repo plus the finalized documentation in #49) into `main`. Verification recorded at merge time: Server — Vitest 16/16 test files, 201/201 tests passed; Client — Playwright 101 passed, 1 skipped (intentionally documented), 102 total. This PR closes Issue #36.
 
 ## 3. Pull Requests I Reviewed (chayongchaya/toktickit)
 
@@ -45,6 +54,16 @@ List of feature-branch PRs authored by @chayongchaya and merged into `lab3-stagi
 | #68 | test: complete Lab 3 coverage and regression test suite | chore/lab3-test-coverage → lab3-staging | https://github.com/chayongchaya/toktickit/pull/68 | @chayongchaya | ✅ Approved & Merged (commit `fc62b29`) |
 | #70 | refactor: Restrict requester routes & polish user management UI | chore/lab3-ui-polish → lab3-staging | https://github.com/chayongchaya/toktickit/pull/70 | @chayongchaya | ✅ Approved & Merged (commit `a130a3d`) |
 | #72 | chore: Fix test isolation for concurrent auth and admin forbidden tests | chore/lab3-test-isolation → lab3-staging | https://github.com/chayongchaya/toktickit/pull/72 | @chayongchaya | ✅ Approved & Merged (commit `4f81d44`) |
+| #74 | test: stabilize Lab 3 E2E session and visual evidence | chore/lab3-e2e-stability → lab3-staging | https://github.com/chayongchaya/toktickit/pull/74 | @chayongchaya | ✅ Approved & Merged (commit `caf7ecb`) |
+| #76 | docs: Comprehensive Lab 3 release documentation, AI disclosure, and review evidence | feature/lab3-release-docs → lab3-staging | https://github.com/chayongchaya/toktickit/pull/76 | @chayongchaya | ✅ Approved & Merged (commit `ec5161d`) |
+
+### 3.1 Final Release PR (lab3-staging → main) — chayongchaya/toktickit
+
+| PR # | Title | Branch → Target | Link | Author | Approval Status |
+| --- | --- | --- | --- | --- | --- |
+| #78 | release: merge Lab 3 increment into main | lab3-staging → main | https://github.com/chayongchaya/toktickit/pull/78 | @chayongchaya | ✅ Approved & Merged (commit `9ca07b0`) |
+
+PR #78 is the final Lab 3 release step in @chayongchaya's repository: it merges her fully-reviewed `lab3-staging` branch (55 commits, including #48, #50, #51, #54, #56, #58, #61, #63, #65, #66, #68, #70, #72, #74, #76) into `main`, with @chayanitkunt as reviewer and merger. Verification recorded at merge time: Server 201/201 tests passed (16 files), Client Vitest 75/75 passed, Playwright E2E 101 passed / 1 skipped, and a clean idempotent database seed with no pending migrations.
 
 ## 4. Comments Given (as Reviewer)
 
@@ -65,6 +84,9 @@ Comments this author (@chayanitkunt) left on partner's (@chayongchaya) PR(s).
 | #68 | "Excellent work closing the remaining test coverage and regression gaps. The client unit assertions, E2E auth flows, and backward compatibility checks are comprehensive, and clearing 100% of the planned items in the traceability matrix puts Lab 3 in great shape. Ready to merge." | "Thanks for reviewing" | ✅ |
 | #70 | "Great polish to wrap up Lab 3! Approved<br/>- **Route Protection:** `RequesterOnlyLayout` cleanly redirects Staff/Admin roles to `/queue` when hitting requester routes (`/tickets`, `/tickets/new`, etc.).<br/>- **UI Density & Badges:** 0.85rem font scaling on `UserManagementPage` improves readability on mobile/desktop without text clipping, and Role Badges now match the rest of the application." | "Thank you so much for the review and approval on the final UI polish! Merging this into lab3-staging now." | ✅ |
 | #72 | "Great fix for test suite reliability!<br/>- **Session Collision Prevention:** Decoupling ticket creation tests from the shared 'Jennifer' seed fixture eliminates intermittent 401 race conditions during concurrent test runs.<br/>- **Ephemeral Test Fixtures:** Dynamic creation and teardown of temporary user fixtures in `users-admin.api.test.ts` keeps DB state predictable for 403 Forbidden assertions." | "Thank you so much for the review and catching those concurrency details" | ✅ |
+| #74 | "Approved! Excellent refactoring to eliminate race conditions across client routing and testing suites. 👏<br/>- **Session Hydration & Deep Links:** Resolving premature redirects in `App.tsx` by awaiting session hydration makes deep-link navigation far more reliable.<br/>- **Ephemeral Test Lifecycle:** Dynamic requester creation, handling the initial password-change requirement, and automatic post-test teardown makes the Staff E2E suite completely deterministic.<br/>- **Visual Artifact Synchronization:** Waiting for full UI hydration before taking snapshots keeps the visual evidence under `artifacts/lab-03/screenshots/` accurate and free of loading state artifacts." | "Thank you so much for the thoughtful review and approval" | ✅ |
+| #76 | "Fantastic work consolidating all submission evidence!<br/>- **Documentation Completeness:** `README.md` updates make local setup and credential testing clear and straightforward.<br/>- **Traceability & Audit:** `ai-use.md` and `reviewer.md` provide a transparent prompt history and a clean PR review timeline.<br/>- **Zero Code Regression:** Verified this PR is strictly documentation (+152/-1 across 4 markdown files) with no risk to application code." | "Thank you so much for the thorough review and final sign-off." | ✅ |
+| #78 | "Huge milestone! Approved and ready to merge into main! 🚀<br/>- **Sprint 3 Feature Complete:** Fully unifies DB migrations, RBAC auth lifecycle, IT Staff ticket workflow, and Admin User Management safety guards.<br/>- **Verification & Quality:** All 201 server tests, 75 client unit tests, and 101 Playwright E2E tests passing cleanly with zero critical regressions.<br/>- **Audit Ready:** Complete traceability matrix (`tests.md`), visual QA artifacts, peer review logs (`reviewer.md`), and AI disclosures (`ai-use.md`) locked in." | "Thanks for the final sign-off! Merging into main now. Huge milestone reached." | ✅ |
 
 ## 5. Comments Received (as Author)
 
@@ -82,6 +104,8 @@ Comments the reviewer (@chayongchaya) left on this author's (@chayanitkunt) PR(s
 | #46 | General | "The responsive refinements for mobile screens look great—especially dynamic pagination (2 per page on mobile vs. 10 on desktop) and cleaning up vertical whitespace on Ticket Detail. Tests are passing cleanly." | "Thanks for the review and approval! Glad the dynamic pagination and mobile spacing tweaks look good." | ✅ |
 | #47 | General | "The E2E, responsive, and visual QA coverage is exceptionally thorough. Excellent work validating the entire user lifecycle across roles, verifying layout integrity (no clipping/overflow) down to mobile viewports, and achieving 101 passing Playwright tests. Ready to merge" | "Thanks for the thorough review and approval! Super excited to see all 101 Playwright E2E tests and visual QA checks green." | ✅ |
 | #48 | General | "Eliminating screenshot race conditions by waiting for the Internal Notes to settle ensures clean visual QA artifacts without loading spinners. Responsive layout adjustments across viewports look spot on, and all 21 visual tests passing confirms stability." | "Thanks for the review and approval! Glad the screenshot wait conditions and visual suite stabilization look solid." | ✅ |
+| #49 | General | "Outstanding work! The final documentation, traceability matrix, peer-review logs, and AI-use reflections are remarkably detailed and rigorous. Increasing the Vitest timeout headroom is a smart move for CI/local stability. Everything aligns with the Sprint 3 release criteria. Ready to merge into lab3-staging for the final release into main." | "Appreciate the review and feedback! Really glad all the deliverable evidence (tests.md, reviewer.md, ai-use.md) and Sprint 3 release criteria align cleanly." | ✅ |
+| #50 | General | "The Sprint 3 release increment is completely ready. Outstanding work delivering the full auth lifecycle, RBAC, staff queue, admin management, and robust visual/E2E coverage (201 server tests, 101 E2E tests green). The traceability and audit documentation are spotless. Approved for final merge into main." | "Thanks for the final review and approval! It's been an awesome sprint working together. Heading over to merge lab3-staging into main now to officially close out Lab 3!" | ✅ |
 
 ## 6. Final Approvals
 
@@ -97,14 +121,19 @@ Comments the reviewer (@chayongchaya) left on this author's (@chayanitkunt) PR(s
 | #46 | @chayongchaya | 14 Sep 2026 | My Ticket responsive layout fix approved. |
 | #47 | @chayongchaya | 15 Sep 2026 | Lab 3 E2E, responsive, and visual QA coverage approved. |
 | #48 | @chayongchaya | 16 Sep 2026 | Visual screenshot timing/stabilization fix approved. |
+| #49 | @chayongchaya | 16 Sep 2026 | Final Lab 3 documentation, test traceability, and AI-use reflection approved. |
+| #50 | @chayongchaya | 16 Sep 2026 | Final release PR approved and merged: `lab3-staging` → `main`. Closes #36. |
 
 
 ## 7. Summary
 
-In Lab 3, @chayanitkunt authored feature/fix/test PRs (#37, #38, #40, #41, #42, #43, #44, #46, #47, #48) in `chayanitkunt/toktickit`, all reviewed and approved by @chayongchaya before merging into `lab3-staging`. In parallel, @chayongchaya authored her own PRs (#48, #50, #51, #54, #56, #58, #61, #63, #65, #66, #68, #70, #72) in `chayongchaya/toktickit`, all reviewed and approved by @chayanitkunt. Code reviews verified:
+In Lab 3, @chayanitkunt authored feature/fix/test/docs PRs (#37, #38, #40, #41, #42, #43, #44, #46, #47, #48, #49) in `chayanitkunt/toktickit`, all reviewed and approved by @chayongchaya before merging into `lab3-staging`. In parallel, @chayongchaya authored her own PRs (#48, #50, #51, #54, #56, #58, #61, #63, #65, #66, #68, #70, #72, #74, #76) in `chayongchaya/toktickit`, all reviewed and approved by @chayanitkunt. Code reviews verified:
 * **Authentication & Authorization:** Real password hashing with bcrypt, session persistence, mandatory first-login password updates, and server-side role enforcement (Requester, IT Staff, Administrator) — chayanitkunt/toktickit#40, #41; chayongchaya/toktickit#51.
 * **IT Staff Operational Workflows:** Shared Ticket Queue, ownership claiming/reassignment, IT Priority management, status transitions, and distinct Public Comments vs. private Internal Notes isolation — chayanitkunt/toktickit#42, #43; chayongchaya/toktickit#61, #63.
 * **Administrator User Management & Design Consistency:** Minimalist user account management, safety rules (preventing self-deactivation and eliminating zero-admin states), route protection (`RequesterOnlyLayout`), and 0.85rem typography density scaling — chayanitkunt/toktickit#44; chayongchaya/toktickit#65, #70.
 * **Test Isolation & Visual QA:** Screenshot wait-condition stabilization (21/21 Playwright visual tests passing) and test fixture isolation preventing intermittent 401/403 race conditions during parallel test runs — chayanitkunt/toktickit#47, #48; chayongchaya/toktickit#56, #58, #66, #68, #72.
 
 All automated unit, API, component, visual, and Playwright E2E test suites passed cleanly prior to merging.
+
+* **Documentation Finalization & Release:** PR #49 completed the required `tests.md`/`reviewer.md`/`ai-use.md` traceability and evidence, and PR #50 — the final release PR — merged the fully-reviewed `lab3-staging` branch (23 commits) into `main` with Server 201/201 and Client 101 passed/1 skipped test suites green, closing Issue #36 and delivering the completed Lab 3 increment to `main`.
+* **Independent Cross-Repo Verification:** @chayongchaya's own `chayongchaya/toktickit` repository followed the same engineering workflow in parallel — feature/fix/test/docs PRs (#48 through #76) reviewed and approved by @chayanitkunt, culminating in her own release PR #78 merging `lab3-staging` (55 commits) into `main` with matching green test suites (Server 201/201, Client Vitest 75/75, Playwright 101 passed/1 skipped). This gives the Lab 3 submission two independently reviewed and released repositories as corroborating evidence.
