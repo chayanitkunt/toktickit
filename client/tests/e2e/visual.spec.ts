@@ -72,11 +72,62 @@ test.describe("Visual QA screenshots", () => {
   test("My Tickets screen", async ({ page }, testInfo) => {
     await loginAsRequester(page, REQUESTER_A.email);
 
+    // Issue: this used to just log in and screenshot whatever was already
+    // in Quinn's list. That only worked by accident, because other e2e
+    // specs running earlier in the same suite happened to have created
+    // tickets under this account first. Quinn/Riley are deliberately seeded
+    // with zero tickets (server/prisma/seed.ts) precisely because they're
+    // the shared automation accounts every spec creates its own test data
+    // under — so right after `test:e2e:reset` + `prisma:seed`, or if this
+    // test happens to run before any spec that creates a ticket, My
+    // Tickets is legitimately empty and there's no `tbody tr` to wait for.
+    // Create a ticket here (same pattern as the Ticket Detail screenshot
+    // below) so this screenshot is deterministic regardless of database
+    // state or test execution order.
+    const summary = `Visual QA My Tickets ${Date.now()}`;
+
+    await page.getByRole("main").getByRole("button", {
+      name: "+ Create Ticket",
+    }).first().click();
+
+    await expect(
+      page.getByRole("heading", { name: "Create Ticket" })
+    ).toBeVisible();
+
+    const createSelects = page.locator("select");
+    await createSelects.nth(0).selectOption({ label: "Hardware" });
+    await createSelects.nth(1).selectOption({ label: "Corporate Laptop" });
+    await createSelects.nth(2).selectOption("MEDIUM");
+
+    await page.locator('input[type="text"]').fill(summary);
+    await page
+      .locator("textarea")
+      .fill(
+        "This ticket is created by the visual QA spec to screenshot the My Tickets list."
+      );
+
+    await page.getByRole("button", { name: "Create Ticket", exact: true }).click();
+
+    await expect(
+      page.getByRole("heading", { name: "Ticket Created" })
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: "Go to My Tickets" }).click();
+
     await expect(
       page.getByRole("heading", { name: "My Tickets", exact: true })
     ).toBeVisible();
 
     await waitForSpinnerToClear(page);
+    // Belt-and-suspenders on top of waitForSpinnerToClear: toHaveCount(0)
+    // resolves the instant the spinner is (even momentarily) absent, which
+    // can land in a gap between two loading cycles rather than after the
+    // final one. Also requiring a real row to be visible — the same guard
+    // the staff-queue screenshot already uses — means the screenshot can
+    // only fire once actual content has painted, not just once the spinner
+    // has (possibly briefly) gone away. Now guaranteed to exist since this
+    // test creates its own ticket above.
+    await expect(page.locator("tbody tr").first()).toBeVisible();
 
     await page.screenshot({
       path: screenshotPath("my-tickets", "list", testInfo.project.name),
@@ -228,7 +279,16 @@ test.describe("Visual QA screenshots", () => {
 
     // Also capture the Internal Notes tab open, since it's the panel that
     // must look visually distinct from Public Comments (BR-04).
+    //
+    // Internal Notes are loaded lazily on first tab open (see the
+    // activeTab-keyed useEffect in StaffTicketDetail.tsx), so clicking the
+    // tab kicks off its own fetch independent of the page-level spinner
+    // waited on above. Without waiting for that fetch to settle here, the
+    // screenshot can be taken mid-load and capture the notes-panel spinner
+    // instead of its content (the bug behind the stuck internal-notes
+    // screenshots).
     await page.getByRole("tab", { name: /internal notes/i }).click();
+    await waitForSpinnerToClear(page);
 
     await page.screenshot({
       path: screenshotPath(

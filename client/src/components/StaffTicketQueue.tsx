@@ -52,7 +52,20 @@ export default function StaffTicketQueue({
 
   const [categories, setCategories] = useState<Category[]>([]);
 
-  const [loading, setLoading] = useState(false);
+  // Issue: this started as `false`, unlike the identical pattern in
+  // MyTickets.tsx (`useState(true)`). Since the queue-loading useEffect
+  // below only runs after the first paint, that first paint happened with
+  // loading=false and meta.total=0 — which matches the "Empty State — no
+  // tickets exist at all" JSX below, not the spinner. So on every mount,
+  // React briefly rendered "There are no tickets in the queue yet." before
+  // flipping to the real spinner a moment later. In a live browser that
+  // flash is too fast to notice, but it meant `.spinner-border` had a
+  // legitimate 0-count instant before the fetch had even started — which
+  // is exactly the gap waitForSpinnerToClear's toHaveCount(0) can resolve
+  // into, reporting "done loading" before loading had begun. Matching
+  // MyTickets.tsx's initial `true` here removes that false-empty flash and
+  // the false-negative wait window it created.
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [forbidden, setForbidden] = useState(false);
 
