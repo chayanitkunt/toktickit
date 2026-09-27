@@ -21,7 +21,7 @@ Quick Actions, each linking into the existing Ticket Queue / Ticket Detail.
 - **Header**: "Welcome back, {name}!" subtitle, **Refresh** button (re-fetches all dashboard data
   without a full page reload).
 - **Metric cards** (each: label, value, and a drill-down affordance — the whole card is a link/
-  button, not just decorative text):
+  button, not just decorative text; no day-over-day trend indicator, see §7 item 6):
   1. **New** — Tickets with status New. Drill-down → Ticket Queue filtered `status=NEW`.
   2. **Open** — status Open. → `status=OPEN`.
   3. **In Progress** — status In Progress. → `status=IN_PROGRESS`.
@@ -153,10 +153,25 @@ Documented here before build, per Spec DD, so the discrepancy is intentional rat
 3. **Requester Dashboard is missing a required card** — the mockup shows My Open/In Progress/
    Resolved/Closed only. Handout §6 explicitly requires **"Tickets waiting for the Requester"**;
    it is added per §2 above.
-4. **Requester Dashboard mockup nav shows "My Tickets" as the active/only item** — per §0 above,
-   the Requester's default landing route becomes **Dashboard**, with **My Tickets** as a separate,
-   still-present nav item; the mockup's nav is a cropped/earlier-state screenshot and should not be
-   read as removing the Dashboard entry point.
+4. **Requester mockup's nav bar has no Dashboard entry** — Image 2 shows only "My Tickets" and
+   "Create Ticket" in the Requester nav; unlike the Staff mockup, there is no separate Dashboard
+   item. This is not read as a cropped screenshot — it is simply what the stakeholder mockup shows.
+   It is overridden anyway because two other parts of the handout are explicit and take precedence
+   over a mockup: §7 requires **"role-appropriate Dashboard navigation"** for every role, and §8.2
+   requires the Requester Dashboard to be a screen distinct from My Tickets ("without duplicating
+   the full My Tickets screen"). So per §0 above, **Dashboard** is added to the Requester nav as a
+   separate item from **My Tickets**, even though the mockup's nav bar doesn't show it.
 5. **No "Service Actions" placeholder remains** — Lab 3's reserved-and-disabled "Service Actions"
    tab (`docs/lab-03/ui-spec.md` §5) is now the live, enabled **Actions Taken** section per §3
    above; no disabled placeholder tab may remain anywhere in the built UI.
+6. **Day-over-day trend deltas are intentionally not built** — every Staff dashboard card in the
+   mockup carries a change indicator ("+3 from yesterday", "↓ -1 from yesterday"). Handout §6
+   Dashboard Rules never asks for this, and computing it needs either a nightly snapshot table or a
+   historical query neither lab requires nor tests — the kind of thing handout §4.2 excludes as
+   "advanced business-intelligence tools." Cards in §1/§2 above show only the current count with no
+   trend indicator; this is a deliberate scope cut, not an oversight.
+7. **Mockup sample ticket numbers are not a format to replicate** — the mockups' own placeholder
+   data is internally inconsistent (`TKT-2025-0012111` has an extra digit, `TKT-2023-001234` uses a
+   different year than every other row, `TKT-001198` drops the year segment entirely). The real
+   format, already implemented in `server/src/ticketNumber.ts`, is `TKT-{year}-{6-digit id}`
+   (e.g. `TKT-2026-000042`); dashboard ticket rows use that format, not the mockup's typos.
