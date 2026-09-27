@@ -16,7 +16,7 @@ import {
   requireRole,
 } from "./auth.js";
 import { isValidStatusTransition } from "./ticketStatusTransitions.js";
-import type { CurrentStatus as PrismaCurrentStatus, Role as PrismaRole } from "@prisma/client";
+import { Prisma, type CurrentStatus as PrismaCurrentStatus, type Role as PrismaRole } from "@prisma/client";
 
 
 // getPrisma() is your lazy database handle. Call it INSIDE a route when you
@@ -1232,6 +1232,12 @@ function validateActionTakenInput(value: Record<string, unknown>): ActionTakenIn
   };
 }
 
+function parseIdempotencyKey(value: string | undefined): string | null | "invalid" {
+  if (value === undefined) return null;
+  const key = value.trim();
+  return key.length > 0 && key.length <= 255 ? key : "invalid";
+}
+
 const ACTION_TAKEN_INCLUDE = {
   performedBy: { select: { id: true, name: true } },
 } as const;
@@ -1241,7 +1247,19 @@ function actionTakenResponse(action: {
   followUpRequired: boolean; followUpNote: string | null; attachmentNotes: string | null;
   createdAt: Date; updatedAt: Date; performedBy: { id: number; name: string };
 }) {
-  return action;
+  return {
+    id: action.id,
+    ticketId: action.ticketId,
+    actionAt: action.actionAt,
+    description: action.description,
+    result: action.result,
+    performedBy: action.performedBy,
+    followUpRequired: action.followUpRequired,
+    followUpNote: action.followUpNote,
+    attachmentNotes: action.attachmentNotes,
+    createdAt: action.createdAt,
+    updatedAt: action.updatedAt,
+  };
 }
 
 // GET /api/staff/eligible-owners — active IT Staff/Administrator users, for
@@ -1571,11 +1589,42 @@ app.post(
         });
       }
 
-      const action = await getPrisma().actionTaken.create({
-        data: { ticketId, performedById: req.currentUser!.id, actionAt: new Date(), ...input },
-        include: ACTION_TAKEN_INCLUDE,
-      });
-      return res.status(201).json(actionTakenResponse(action));
+      const idempotencyKey = parseIdempotencyKey(req.get("Idempotency-Key"));
+      if (idempotencyKey === "invalid") {
+        return res.status(400).json({ error: "Idempotency-Key must be 1 to 255 characters", code: "invalid_input" });
+      }
+
+      // A browser/network retry carries the same key. Return the original
+      // record rather than appending a duplicate audit entry.
+      if (idempotencyKey) {
+        const existing = await getPrisma().actionTaken.findFirst({
+          where: { ticketId, performedById: req.currentUser!.id, idempotencyKey },
+          include: ACTION_TAKEN_INCLUDE,
+        });
+        if (existing) return res.status(200).json(actionTakenResponse(existing));
+      }
+
+      try {
+        const action = await getPrisma().actionTaken.create({
+          data: {
+            ticketId, performedById: req.currentUser!.id, actionAt: new Date(),
+            idempotencyKey, ...input,
+          },
+          include: ACTION_TAKEN_INCLUDE,
+        });
+        return res.status(201).json(actionTakenResponse(action));
+      } catch (error) {
+        // The unique index is the race-safe half of idempotency: two requests
+        // can both miss the lookup above, but only one can insert.
+        if (idempotencyKey && error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+          const existing = await getPrisma().actionTaken.findFirst({
+            where: { ticketId, performedById: req.currentUser!.id, idempotencyKey },
+            include: ACTION_TAKEN_INCLUDE,
+          });
+          if (existing) return res.status(200).json(actionTakenResponse(existing));
+        }
+        throw error;
+      }
     } catch (error) {
       console.error(error);
       return res.status(500).json({ error: "Unable to create Action Taken", code: "server_error" });

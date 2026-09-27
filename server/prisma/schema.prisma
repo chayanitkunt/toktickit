@@ -147,6 +147,9 @@ model ActionTaken {
   followUpRequired Boolean  @default(false)
   followUpNote     String?
   attachmentNotes  String?
+  // Optional transport-level idempotency key. It is scoped to the Ticket and
+  // authenticated performer so a client retry cannot create duplicate work.
+  idempotencyKey   String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -155,6 +158,7 @@ model ActionTaken {
 
   @@index([ticketId])
   @@index([performedById])
+  @@unique([ticketId, performedById, idempotencyKey])
 }
 
 model Attachment {

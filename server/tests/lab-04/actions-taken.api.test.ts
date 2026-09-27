@@ -49,6 +49,26 @@ describe("Lab 4 Actions Taken API", () => {
     expect(new Date(response.body.actionAt).getFullYear()).not.toBe(2000);
   });
 
+  it("deduplicates concurrent create retries that use the same Idempotency-Key", async () => {
+    const ticket = await freshTicket();
+    const agent = await staff();
+    const key = `actions-test-retry-${ticket.id}`;
+    const [first, retry] = await Promise.all([
+      agent.post(`/api/staff/tickets/${ticket.id}/actions`).set("Idempotency-Key", key).send(validAction),
+      agent.post(`/api/staff/tickets/${ticket.id}/actions`).set("Idempotency-Key", key).send(validAction),
+    ]);
+    expect([first.status, retry.status].sort()).toEqual([200, 201]);
+    expect(first.body.id).toBe(retry.body.id);
+    expect(await getPrisma().actionTaken.count({ where: { ticketId: ticket.id } })).toBe(1);
+  });
+
+  it("returns a safe 404 when creating an action on a nonexistent Ticket", async () => {
+    const agent = await staff();
+    const response = await agent.post("/api/staff/tickets/999999999/actions").send(validAction);
+    expect(response.status).toBe(404);
+    expect(response.body.code).toBe("not_found");
+  });
+
   it("enforces follow-up rules and requester write authorization", async () => {
     const ticket = await freshTicket();
     const agent = await staff();
@@ -135,6 +155,28 @@ describe("Lab 4 Actions Taken API", () => {
     expect(response.body.performedBy.id).not.toBe(ownerIdentity.body.id);
     expect((await getPrisma().ticket.findUniqueOrThrow({ where: { id: ticket.id } })).ownerId)
       .toBe(ownerIdentity.body.id);
+  });
+
+  it("stores multiple authors on one Ticket and lets staff read any Ticket's action list", async () => {
+    const ticket = await freshTicket();
+    const admin = await staff("jennifer.anderson@tiktockit.com");
+    const staffA = await staff();
+    const staffB = await staff("staff.automation.b@tiktockit.com");
+    // Make the owner distinct from both performers.
+    expect((await admin.post(`/api/staff/tickets/${ticket.id}/claim`).send({})).status).toBe(200);
+    const [first, second] = await Promise.all([
+      staffA.post(`/api/staff/tickets/${ticket.id}/actions`).send(validAction),
+      staffB.post(`/api/staff/tickets/${ticket.id}/actions`).send({
+        ...validAction, description: "Checked switch-port configuration.", result: "Switch port is configured correctly.",
+      }),
+    ]);
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    expect(first.body.performedBy.id).not.toBe(second.body.performedBy.id);
+    const listed = await staffA.get(`/api/tickets/${ticket.id}/actions`);
+    expect(listed.status).toBe(200);
+    expect(listed.body.map((action: { performedBy: { id: number } }) => action.performedBy.id).sort())
+      .toEqual([first.body.performedBy.id, second.body.performedBy.id].sort());
   });
 
   it("lists own-ticket actions oldest first while hiding another requester's ticket", async () => {
