@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../AuthContext";
 import ActionsTaken from "./ActionsTaken";
 import {
+  ApiRequestError,
   claimTicket,
   downloadAttachment,
   getComments,
   getEligibleOwners,
   getInternalNotes,
+  getActionsTaken,
   getStaffTicketDetail,
   postComment,
   postInternalNote,
@@ -128,6 +130,9 @@ export default function StaffTicketDetail({
   // Status
   const [savingStatus, setSavingStatus] = useState(false);
   const [statusError, setStatusError] = useState("");
+  const [statusConflict, setStatusConflict] = useState(false);
+  const [actionCount, setActionCount] = useState<number | null>(null);
+  const actionCountRequestVersion = useRef(0);
 
   // Public Comments
   const [comments, setComments] = useState<TicketComment[]>([]);
@@ -234,6 +239,33 @@ export default function StaffTicketDetail({
     };
   }, [loadTicket]);
 
+  // The resolution gate is a convenience hint; keep Ticket Detail usable if
+  // the separate Actions Taken read fails. The backend remains authoritative.
+  useEffect(() => {
+    if (loading || notFound || forbidden || error) return;
+    let cancelled = false;
+    const requestVersion = ++actionCountRequestVersion.current;
+    getActionsTaken(ticketId)
+      .then((actions) => {
+        if (!cancelled && requestVersion === actionCountRequestVersion.current) {
+          setActionCount(actions.length);
+        }
+      })
+      .catch(() => {
+        if (!cancelled && requestVersion === actionCountRequestVersion.current) {
+          setActionCount(null);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [ticketId, loading, notFound, forbidden, error]);
+
+  const handleActionsChanged = useCallback((count: number) => {
+    // Invalidate any in-flight initial count read: it may have started before
+    // the newly-created action was committed and must not overwrite this value.
+    actionCountRequestVersion.current += 1;
+    setActionCount(count);
+  }, []);
+
   // Load each tab's data lazily the first time it's opened, then keep it
   // cached — avoids fetching Internal Notes before the ticket/role check
   // above has even resolved.
@@ -320,9 +352,14 @@ export default function StaffTicketDetail({
     try {
       setSavingStatus(true);
       setStatusError("");
-      const updated = await updateTicketStatus(ticket.id, newStatus);
-      setTicket({ ...ticket, currentStatus: updated.currentStatus });
+      setStatusConflict(false);
+      const updated = await updateTicketStatus(ticket.id, newStatus, ticket.updatedAt);
+      setTicket({ ...ticket, currentStatus: updated.currentStatus, updatedAt: updated.updatedAt });
     } catch (err) {
+      if (err instanceof ApiRequestError && err.status === 409) {
+        setStatusConflict(true);
+        return;
+      }
       setStatusError(
         err instanceof Error ? err.message : "Unable to update ticket status"
       );
@@ -407,6 +444,10 @@ export default function StaffTicketDetail({
 
   const isCurrentOwner = !!ticket?.owner && ticket.owner.id === user?.id;
   const canClaim = !!ticket && !ticket.owner;
+  const allowedNextStatuses = ticket
+    ? getAllowedNextStatuses(ticket.currentStatus)
+    : [];
+  const resolutionBlocked = actionCount === 0 && allowedNextStatuses.includes("RESOLVED");
 
   function tabButtonStyle(tab: ActiveTab) {
     const active = activeTab === tab;
@@ -676,8 +717,7 @@ export default function StaffTicketDetail({
                     className="form-select"
                     value=""
                     disabled={
-                      savingStatus ||
-                      getAllowedNextStatuses(ticket.currentStatus).length === 0
+                      savingStatus || allowedNextStatuses.length === 0
                     }
                     onChange={(e) => {
                       if (e.target.value) {
@@ -688,9 +728,9 @@ export default function StaffTicketDetail({
                     <option value="" disabled>
                       {savingStatus ? "Saving..." : "Change status to..."}
                     </option>
-                    {getAllowedNextStatuses(ticket.currentStatus).map(
+                    {allowedNextStatuses.map(
                       (status) => (
-                        <option key={status} value={status}>
+                        <option key={status} value={status} disabled={status === "RESOLVED" && actionCount === 0}>
                           {STATUS_LABELS[status]}
                         </option>
                       )
@@ -699,6 +739,22 @@ export default function StaffTicketDetail({
                   {statusError && (
                     <div className="small mt-1" style={{ color: "#D32F2F" }}>
                       {statusError}
+                    </div>
+                  )}
+                  {resolutionBlocked && (
+                    <div className="small mt-1" style={{ color: "#B45309" }}>
+                      Add an Action Taken before resolving this Ticket. {" "}
+                      <button type="button" className="btn btn-link btn-sm p-0 align-baseline" onClick={() => setActiveTab("actions")}>
+                        Go to Actions Taken
+                      </button>
+                    </div>
+                  )}
+                  {statusConflict && (
+                    <div className="alert alert-warning py-2 px-3 mt-2 mb-0" role="alert">
+                      This ticket was updated by someone else. Reload to see the latest status before trying again.
+                      <button type="button" className="btn btn-link btn-sm p-0 ms-1 align-baseline" onClick={() => loadTicket(() => false)}>
+                        Reload
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1018,7 +1074,7 @@ export default function StaffTicketDetail({
               )}
 
               {activeTab === "actions" && (
-                <ActionsTaken ticketId={ticketId} canEdit />
+                <ActionsTaken ticketId={ticketId} canEdit onActionsChanged={handleActionsChanged} />
               )}
             </div>
           </div>

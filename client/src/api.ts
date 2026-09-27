@@ -798,27 +798,30 @@ export async function updateItPriority(
 
 export async function updateTicketStatus(
   ticketId: number,
-  currentStatus: CurrentStatus
-): Promise<{ id: number; currentStatus: CurrentStatus }> {
+  currentStatus: CurrentStatus,
+  expectedUpdatedAt: string
+): Promise<{ id: number; currentStatus: CurrentStatus; updatedAt: string }> {
   const response = await fetch(
     `${API_URL}/api/staff/tickets/${ticketId}/status`,
     {
       method: "PATCH",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ currentStatus }),
+      body: JSON.stringify({ currentStatus, expectedUpdatedAt }),
     }
   );
 
   const result = await readJsonSafely(response);
 
   if (!response.ok) {
-    throw new Error(
-      (result as unknown as ApiErrorBody)?.error ?? "Unable to update ticket status"
+    throw new ApiRequestError(
+      (result as unknown as ApiErrorBody)?.error ?? "Unable to update ticket status",
+      response.status,
+      (result as unknown as ApiErrorBody)?.code
     );
   }
 
-  return result as unknown as { id: number; currentStatus: CurrentStatus };
+  return result as unknown as { id: number; currentStatus: CurrentStatus; updatedAt: string };
 }
 
 // ---------------------------------------------------------------------------
