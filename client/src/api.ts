@@ -21,6 +21,17 @@ export interface ApiErrorBody {
   details?: string[];
 }
 
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code?: string
+  ) {
+    super(message);
+    this.name = "ApiRequestError";
+  }
+}
+
 async function readJsonSafely(
   response: Response
 ): Promise<ApiErrorBody | null> {
@@ -416,6 +427,78 @@ export async function getTicketDetail(
   }
 
   return response.json();
+}
+
+// ---------------------------------------------------------
+// Lab 4 — Actions Taken
+// ---------------------------------------------------------
+export interface ActionTaken {
+  id: number;
+  ticketId: number;
+  actionAt: string;
+  description: string;
+  result: string;
+  performedBy: { id: number; name: string };
+  followUpRequired: boolean;
+  followUpNote: string | null;
+  attachmentNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ActionTakenInput {
+  description: string;
+  result: string;
+  followUpRequired: boolean;
+  followUpNote?: string;
+  attachmentNotes?: string;
+}
+
+async function actionTakenRequest(
+  path: string,
+  init?: RequestInit
+): Promise<ActionTaken | ActionTaken[]> {
+  const response = await fetch(`${API_URL}${path}`, {
+    credentials: "include",
+    ...init,
+  });
+  const result = await readJsonSafely(response);
+  if (!response.ok) {
+    throw new ApiRequestError(
+      result?.error ?? "Unable to process Action Taken",
+      response.status,
+      result?.code
+    );
+  }
+  return result as ActionTaken | ActionTaken[];
+}
+
+export async function getActionsTaken(ticketId: number): Promise<ActionTaken[]> {
+  return actionTakenRequest(`/api/tickets/${ticketId}/actions`) as Promise<ActionTaken[]>;
+}
+
+export async function createActionTaken(
+  ticketId: number,
+  input: ActionTakenInput,
+  idempotencyKey: string
+): Promise<ActionTaken> {
+  return actionTakenRequest(`/api/staff/tickets/${ticketId}/actions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify(input),
+  }) as Promise<ActionTaken>;
+}
+
+export async function updateActionTaken(
+  ticketId: number,
+  actionId: number,
+  input: ActionTakenInput & { expectedUpdatedAt: string }
+): Promise<ActionTaken> {
+  return actionTakenRequest(`/api/staff/tickets/${ticketId}/actions/${actionId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  }) as Promise<ActionTaken>;
 }
 
 export async function addAttachments(
