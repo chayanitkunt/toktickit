@@ -268,10 +268,11 @@ describe("PATCH /api/staff/tickets/:id/status — AC-13/BR-08", () => {
   it("accepts a legal transition (NEW -> OPEN)", async () => {
     const ticket = await createFreshTicket();
     const staff = await loginAsItStaff();
+    const detail = await staff.get(`/api/staff/tickets/${ticket.id}`);
 
     const response = await staff
       .patch(`/api/staff/tickets/${ticket.id}/status`)
-      .send({ currentStatus: "OPEN" });
+      .send({ currentStatus: "OPEN", expectedUpdatedAt: detail.body.updatedAt });
 
     expect(response.status).toBe(200);
     expect(response.body.currentStatus).toBe("OPEN");
@@ -280,13 +281,14 @@ describe("PATCH /api/staff/tickets/:id/status — AC-13/BR-08", () => {
   it("rejects an illegal transition (NEW -> CLOSED) with 422 and leaves the ticket unchanged", async () => {
     const ticket = await createFreshTicket();
     const staff = await loginAsItStaff();
+    const before = await staff.get(`/api/staff/tickets/${ticket.id}`);
 
     const response = await staff
       .patch(`/api/staff/tickets/${ticket.id}/status`)
-      .send({ currentStatus: "CLOSED" });
+      .send({ currentStatus: "CLOSED", expectedUpdatedAt: before.body.updatedAt });
 
     expect(response.status).toBe(422);
-    expect(response.body.code).toBe("invalid_transition");
+    expect(response.body.code).toBe("illegal_status_transition");
 
     const detail = await staff.get(`/api/staff/tickets/${ticket.id}`);
     expect(detail.body.currentStatus).toBe("NEW");
@@ -327,10 +329,11 @@ describe("PATCH /api/staff/tickets/:id/status — AC-13/BR-08", () => {
   it("allows an Administrator to change status the same as IT Staff", async () => {
     const ticket = await createFreshTicket();
     const admin = await loginAsAdmin();
+    const detail = await admin.get(`/api/staff/tickets/${ticket.id}`);
 
     const response = await admin
       .patch(`/api/staff/tickets/${ticket.id}/status`)
-      .send({ currentStatus: "OPEN" });
+      .send({ currentStatus: "OPEN", expectedUpdatedAt: detail.body.updatedAt });
 
     expect(response.status).toBe(200);
   });
