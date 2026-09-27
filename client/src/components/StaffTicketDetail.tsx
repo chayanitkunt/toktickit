@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../AuthContext";
+import ActionsTaken from "./ActionsTaken";
 import {
   claimTicket,
   downloadAttachment,
@@ -30,7 +31,7 @@ interface StaffTicketDetailProps {
   onBack: () => void;
 }
 
-type ActiveTab = "comments" | "notes" | "attachments";
+type ActiveTab = "comments" | "notes" | "attachments" | "actions";
 
 function formatDate(date?: string) {
   if (!date) return "-";
@@ -705,8 +706,8 @@ export default function StaffTicketDetail({
             </div>
           </div>
 
-          {/* Tabs: Public Comments | Internal Notes | Attachments |
-              Service Actions (reserved, disabled — Lab 4) */}
+          {/* Public Comments, private Internal Notes, Attachments, and the
+              Lab 4 Actions Taken work record. */}
           <div
             className="card"
             style={{ border: "1px solid #E0E6E2", borderRadius: "10px" }}
@@ -749,16 +750,12 @@ export default function StaffTicketDetail({
               <button
                 type="button"
                 role="tab"
-                disabled
+                aria-selected={activeTab === "actions"}
                 className="btn"
-                style={{
-                  ...tabButtonStyle("comments"),
-                  color: "#B7C2BC",
-                  cursor: "not-allowed",
-                }}
-                title="Available in Lab 4"
+                style={tabButtonStyle("actions")}
+                onClick={() => setActiveTab("actions")}
               >
-                Service Actions
+                Actions Taken
               </button>
             </div>
 
@@ -1018,6 +1015,10 @@ export default function StaffTicketDetail({
                     </ul>
                   )}
                 </div>
+              )}
+
+              {activeTab === "actions" && (
+                <ActionsTaken ticketId={ticketId} canEdit />
               )}
             </div>
           </div>

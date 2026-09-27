@@ -11,6 +11,7 @@ import {
   type TicketComment,
   type TicketDetail as TicketDetailData,
 } from "../api";
+import ActionsTaken from "./ActionsTaken";
 
 interface TicketDetailProps {
   ticketId: number;
@@ -715,6 +716,15 @@ export default function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
               {postingComment ? "Posting..." : "Post Comment"}
             </button>
           </form>
+        </div>
+      </div>
+
+      <div
+        className="card mt-2 mt-md-4"
+        style={{ border: "1px solid #E0E6E2", borderRadius: "10px" }}
+      >
+        <div className="card-body p-3 p-md-4">
+          <ActionsTaken ticketId={ticketId} canEdit={false} />
         </div>
       </div>
     </div>
