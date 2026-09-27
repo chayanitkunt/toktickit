@@ -39,6 +39,7 @@ model User {
   ticketsOwned     Ticket[]        @relation("TicketOwner")
   comments         TicketComment[]
   notes            TicketNote[]
+  actionsPerformed ActionTaken[]   @relation("ActionPerformedBy")
 
   @@index([role])
 }
@@ -95,6 +96,7 @@ model Ticket {
   attachments   Attachment[]
   comments      TicketComment[]
   notes         TicketNote[]
+  actionsTaken  ActionTaken[]
 
   @@index([requesterId])
   @@index([ownerId])
@@ -131,6 +133,28 @@ model TicketNote {
   author User   @relation(fields: [authorId], references: [id])
 
   @@index([ticketId])
+}
+
+// Lab 4 — auditable work records.  The server owns both actionAt and
+// performedById; they are deliberately not editable through the API.
+model ActionTaken {
+  id               Int      @id @default(autoincrement())
+  ticketId         Int
+  actionAt         DateTime
+  description      String
+  result           String
+  performedById    Int
+  followUpRequired Boolean  @default(false)
+  followUpNote     String?
+  attachmentNotes  String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  ticket      Ticket @relation(fields: [ticketId], references: [id])
+  performedBy User   @relation("ActionPerformedBy", fields: [performedById], references: [id])
+
+  @@index([ticketId])
+  @@index([performedById])
 }
 
 model Attachment {

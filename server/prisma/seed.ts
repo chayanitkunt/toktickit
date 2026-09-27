@@ -314,6 +314,50 @@ export async function main() {
       content: "Checked firewall rules on the VPN concentrator; escalating to network team.",
     },
   });
+
+  // ---------------------------------------------------------------------
+  // Lab 4 Actions Taken: ticket1 intentionally has none; ticket2 has one;
+  // ticket3 has multiple records authored by different staff; ticket5 is an
+  // already-resolved example backed by recorded work. Stable ids keep this
+  // idempotent on every seed run.
+  // ---------------------------------------------------------------------
+  const actions = [
+    {
+      id: 1, ticketId: ticket2.id, performedById: michael.id,
+      actionAt: new Date("2026-09-20T09:14:00.000Z"),
+      description: "Reviewed VPN client and refreshed the authentication profile.",
+      result: "Client profile refreshed; monitoring the next sign-in attempt.",
+      followUpRequired: true, followUpNote: "Ask the requester to confirm the next home connection.", attachmentNotes: null,
+    },
+    {
+      id: 2, ticketId: ticket3.id, performedById: sarah.id,
+      actionAt: new Date("2026-09-21T08:30:00.000Z"),
+      description: "Collected mobile mail application diagnostics.",
+      result: "Logs show a stale account token after the operating-system update.",
+      followUpRequired: false, followUpNote: null, attachmentNotes: "Diagnostic reference: mobile-mail-log-0921.txt",
+    },
+    {
+      id: 3, ticketId: ticket3.id, performedById: david.id,
+      actionAt: new Date("2026-09-21T10:00:00.000Z"),
+      description: "Revoked the stale token and guided the requester through sign-in.",
+      result: "Mail synchronization resumed successfully.",
+      followUpRequired: true, followUpNote: "Requester should confirm sync remains stable tomorrow.", attachmentNotes: null,
+    },
+    {
+      id: 4, ticketId: ticket5.id, performedById: david.id,
+      actionAt: new Date("2026-09-19T13:20:00.000Z"),
+      description: "Restarted the print spooler and reinstalled the shared printer queue.",
+      result: "Printer is online and completed a successful test page.",
+      followUpRequired: false, followUpNote: null, attachmentNotes: "Test page retained at the printer desk.",
+    },
+  ];
+  for (const action of actions) {
+    await prisma.actionTaken.upsert({
+      where: { id: action.id },
+      update: action,
+      create: action,
+    });
+  }
   await prisma.ticketNote.upsert({
     where: { id: 2 },
     update: {},
@@ -387,10 +431,11 @@ export async function main() {
   await resyncIdSequence("TicketComment");
   await resyncIdSequence("TicketNote");
   await resyncIdSequence("Attachment");
+  await resyncIdSequence("ActionTaken");
 
   console.log(
     "Seed complete: categories, related systems, users (Requester/IT Staff/Administrator), " +
-      "tickets, comments, and notes.",
+      "tickets, comments, notes, and Actions Taken.",
   );
 }
 
