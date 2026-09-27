@@ -274,6 +274,26 @@ describe("StaffTicketDetail", () => {
     });
   });
 
+  it("shows a reloadable conflict banner when a status update is stale", async () => {
+    mockFetchRoutes({
+      status: () =>
+        jsonResponse(
+          { error: "This ticket has been updated by someone else", code: "stale_ticket" },
+          409
+        ),
+    });
+    const user = userEvent.setup();
+    renderStaffTicketDetail();
+
+    const statusSelect = await screen.findByLabelText(/current status/i);
+    await user.selectOptions(statusSelect, "OPEN");
+
+    expect(
+      await screen.findByText(/This ticket was updated by someone else/i)
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /reload/i })).toBeInTheDocument();
+  });
+
   it("asks for confirmation when moving out of a terminal status (Resolved/Closed/Cancelled)", async () => {
     // specification.md §5.1: confirmation is required for every transition
     // OUT OF Resolved/Closed/Cancelled (e.g. Resolved -> Closed/Reopened),

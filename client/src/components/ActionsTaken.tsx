@@ -11,6 +11,7 @@ import {
 interface ActionsTakenProps {
   ticketId: number;
   canEdit: boolean;
+  onActionsChanged?: (count: number) => void;
 }
 
 type FormValues = {
@@ -144,7 +145,7 @@ function ActionForm({
   );
 }
 
-export default function ActionsTaken({ ticketId, canEdit }: ActionsTakenProps) {
+export default function ActionsTaken({ ticketId, canEdit, onActionsChanged }: ActionsTakenProps) {
   const [actions, setActions] = useState<ActionTaken[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -158,11 +159,13 @@ export default function ActionsTaken({ ticketId, canEdit }: ActionsTakenProps) {
   const load = useCallback(async () => {
     try {
       setLoading(true); setError("");
-      setActions(await getActionsTaken(ticketId));
+      const nextActions = await getActionsTaken(ticketId);
+      setActions(nextActions);
+      onActionsChanged?.(nextActions.length);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load Actions Taken.");
     } finally { setLoading(false); }
-  }, [ticketId]);
+  }, [ticketId, onActionsChanged]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -171,6 +174,7 @@ export default function ActionsTaken({ ticketId, canEdit }: ActionsTakenProps) {
       setSubmitting(true); setFormError("");
       const created = await createActionTaken(ticketId, inputFromForm(values), idempotencyKey);
       setActions((previous) => [...previous.filter((action) => action.id !== created.id), created].sort((a, b) => a.actionAt.localeCompare(b.actionAt)));
+      onActionsChanged?.(actions.length + (actions.some((action) => action.id === created.id) ? 0 : 1));
       setShowCreate(false); setIdempotencyKey(crypto.randomUUID());
     } catch (err) { setFormError(err instanceof Error ? err.message : "Unable to add Action Taken."); }
     finally { setSubmitting(false); }
