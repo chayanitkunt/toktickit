@@ -103,6 +103,13 @@ model Ticket {
   @@index([categoryId])
   @@index([relatedSystemId])
   @@index([currentStatus])
+  // Dashboard filters/orderings: requester/owner scope plus live status
+  // counts and bounded recent lists (§7 dashboard design decision).
+  @@index([requesterId, currentStatus])
+  @@index([requesterId, updatedAt])
+  @@index([ownerId, currentStatus])
+  @@index([ownerId, updatedAt])
+  @@index([currentStatus, itPriority])
 }
 
 // Public Comments (BR-04): visible to the ticket's Requester, IT Staff, and

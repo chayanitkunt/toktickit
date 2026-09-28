@@ -374,6 +374,66 @@ const requireAdmin = [
   requireRole("ADMINISTRATOR"),
 ];
 
+// ---------------------------------------------------------------------------
+// Lab 4 — role-scoped dashboard summaries. These deliberately return only
+// counts and bounded ticket summaries, never an unfiltered Ticket collection.
+// All scopes come from the session; query parameters are ignored.
+// ---------------------------------------------------------------------------
+const dashboardTicketSelect = {
+  id: true,
+  ticketNumber: true,
+  summary: true,
+  currentStatus: true,
+  updatedAt: true,
+} as const;
+
+app.get("/api/dashboard/requester", ...requireRequester, async (req: Request, res: Response) => {
+  try {
+    const requesterId = req.currentUser!.id;
+    const prisma = getPrisma();
+    const requesterWhere = { requesterId };
+    const [myOpenTickets, waitingForRequester, resolved, closed, recentlyUpdatedTickets, recentlyResolvedTickets] = await Promise.all([
+      prisma.ticket.count({ where: { ...requesterWhere, currentStatus: { in: ["NEW", "OPEN", "IN_PROGRESS", "REOPENED"] } } }),
+      prisma.ticket.count({ where: { ...requesterWhere, currentStatus: "WAITING_FOR_REQUESTER" } }),
+      prisma.ticket.count({ where: { ...requesterWhere, currentStatus: "RESOLVED" } }),
+      prisma.ticket.count({ where: { ...requesterWhere, currentStatus: "CLOSED" } }),
+      prisma.ticket.findMany({ where: requesterWhere, select: dashboardTicketSelect, orderBy: { updatedAt: "desc" }, take: 5 }),
+      prisma.ticket.findMany({ where: { ...requesterWhere, currentStatus: { in: ["RESOLVED", "CLOSED"] } }, select: dashboardTicketSelect, orderBy: { updatedAt: "desc" }, take: 5 }),
+    ]);
+    return res.status(200).json({ myOpenTickets, waitingForRequester, resolved, closed, recentlyUpdatedTickets, recentlyResolvedTickets });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Unable to retrieve requester dashboard", code: "server_error" });
+  }
+});
+
+app.get("/api/dashboard/staff", ...requireStaff, async (req: Request, res: Response) => {
+  try {
+    const userId = req.currentUser!.id;
+    const prisma = getPrisma();
+    const openWhere = { currentStatus: { notIn: ["CLOSED", "CANCELLED"] as PrismaCurrentStatus[] } };
+    const [statusGroups, priorityGroups, unassigned, myAssigned, myRecentTickets] = await Promise.all([
+      prisma.ticket.groupBy({ by: ["currentStatus"], _count: { _all: true }, where: { currentStatus: { in: ["NEW", "OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER"] } } }),
+      prisma.ticket.groupBy({ by: ["itPriority"], _count: { _all: true }, where: openWhere }),
+      prisma.ticket.count({ where: { ownerId: null, ...openWhere } }),
+      prisma.ticket.count({ where: { ownerId: userId, currentStatus: { notIn: ["CLOSED", "CANCELLED", "RESOLVED"] } } }),
+      prisma.ticket.findMany({ where: { ownerId: userId }, select: dashboardTicketSelect, orderBy: { updatedAt: "desc" }, take: 5 }),
+    ]);
+    const statusCount = (status: PrismaCurrentStatus) => statusGroups.find((group) => group.currentStatus === status)?._count._all ?? 0;
+    const priorityCount = (priority: "LOW" | "MEDIUM" | "HIGH") => priorityGroups.find((group) => group.itPriority === priority)?._count._all ?? 0;
+    return res.status(200).json({
+      byStatus: { new: statusCount("NEW"), open: statusCount("OPEN"), inProgress: statusCount("IN_PROGRESS"), waitingForRequester: statusCount("WAITING_FOR_REQUESTER") },
+      unassigned,
+      myAssigned,
+      byItPriority: { low: priorityCount("LOW"), medium: priorityCount("MEDIUM"), high: priorityCount("HIGH") },
+      myRecentTickets,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Unable to retrieve staff dashboard", code: "server_error" });
+  }
+});
+
 const ALLOWED_ROLES = ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"];
 
 const ADMIN_USER_SELECT = {
