@@ -11,6 +11,7 @@ import {
 interface MyTicketsProps {
   onCreateTicket?: () => void;
   onOpenTicket?: (ticketId: number) => void;
+  initialStatus?: CurrentStatus;
 }
 
 const MOBILE_BREAKPOINT = 767.98;
@@ -22,6 +23,7 @@ function getPageSize() {
 export default function MyTickets({
   onCreateTicket,
   onOpenTicket,
+  initialStatus,
 }: MyTicketsProps) {
   const [tickets, setTickets] = useState<TicketListItem[]>([]);
   const [meta, setMeta] = useState<TicketListMeta>({
@@ -37,7 +39,7 @@ export default function MyTickets({
     useState<RequestedPriority | undefined>();
   const [itPriority, setItPriority] =
     useState<RequestedPriority | undefined>();
-  const [status, setStatus] = useState<CurrentStatus | undefined>();
+  const [status, setStatus] = useState<CurrentStatus | undefined>(initialStatus);
 
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");

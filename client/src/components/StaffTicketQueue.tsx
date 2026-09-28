@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   getStaffTicketQueue,
   type Category,
@@ -11,6 +11,10 @@ import {
 
 interface StaffTicketQueueProps {
   onOpenTicket?: (ticketId: number) => void;
+  initialStatus?: CurrentStatus;
+  initialOwner?: OwnerFilter;
+  initialPriority?: RequestedPriority;
+  focusSearch?: boolean;
 }
 
 type OwnerFilter = "me" | "unassigned" | "all";
@@ -29,6 +33,10 @@ function getPageSize() {
 
 export default function StaffTicketQueue({
   onOpenTicket,
+  initialStatus,
+  initialOwner = "all",
+  initialPriority,
+  focusSearch = false,
 }: StaffTicketQueueProps) {
   const [tickets, setTickets] = useState<StaffTicketListItem[]>([]);
   const [meta, setMeta] = useState<TicketListMeta>({
@@ -39,13 +47,12 @@ export default function StaffTicketQueue({
   });
 
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<CurrentStatus | undefined>();
+  const [status, setStatus] = useState<CurrentStatus | undefined>(initialStatus);
   const [categoryId, setCategoryId] = useState<number | undefined>();
   const [requestedPriority, setRequestedPriority] =
     useState<RequestedPriority | undefined>();
-  const [itPriority, setItPriority] =
-    useState<RequestedPriority | undefined>();
-  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>("all");
+  const [itPriority, setItPriority] = useState<RequestedPriority | undefined>(initialPriority);
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>(initialOwner);
 
   const [sortBy, setSortBy] = useState<StaffQueueSortField>("updatedAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
@@ -68,6 +75,11 @@ export default function StaffTicketQueue({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [forbidden, setForbidden] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (focusSearch) searchInputRef.current?.focus();
+  }, [focusSearch]);
 
   // Adjust page size for mobile/desktop — same pattern as MyTickets.tsx.
   useEffect(() => {
@@ -338,6 +350,7 @@ export default function StaffTicketQueue({
               </label>
               <input
                 id="staff-search-input"
+                ref={searchInputRef}
                 type="search"
                 className="form-control"
                 placeholder="Search by ticket number or summary..."

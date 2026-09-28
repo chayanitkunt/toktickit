@@ -430,6 +430,46 @@ export async function getTicketDetail(
 }
 
 // ---------------------------------------------------------
+// Lab 4 — Dashboard summaries
+// ---------------------------------------------------------
+export interface DashboardTicket {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  currentStatus: CurrentStatus;
+  updatedAt: string;
+}
+
+export interface RequesterDashboardData {
+  myOpenTickets: number;
+  waitingForRequester: number;
+  resolved: number;
+  closed: number;
+  recentlyUpdatedTickets: DashboardTicket[];
+  recentlyResolvedTickets: DashboardTicket[];
+}
+
+export interface StaffDashboardData {
+  byStatus: { new: number; open: number; inProgress: number; waitingForRequester: number };
+  unassigned: number;
+  myAssigned: number;
+  byItPriority: { low: number; medium: number; high: number };
+  myRecentTickets: DashboardTicket[];
+}
+
+async function getDashboard<T>(path: string): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, { credentials: "include" });
+  const result = await readJsonSafely(response);
+  if (!response.ok) {
+    throw new ApiRequestError(result?.error ?? "Unable to retrieve dashboard", response.status, result?.code);
+  }
+  return result as T;
+}
+
+export const getRequesterDashboard = () => getDashboard<RequesterDashboardData>("/api/dashboard/requester");
+export const getStaffDashboard = () => getDashboard<StaffDashboardData>("/api/dashboard/staff");
+
+// ---------------------------------------------------------
 // Lab 4 — Actions Taken
 // ---------------------------------------------------------
 export interface ActionTaken {

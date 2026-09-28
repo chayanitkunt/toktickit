@@ -7,7 +7,10 @@ import ChangePassword from "./components/ChangePassword";
 import StaffTicketQueue from "./components/StaffTicketQueue";
 import StaffTicketDetail from "./components/StaffTicketDetail";
 import UserManagement from "./components/UserManagement";
+import RequesterDashboard from "./components/RequesterDashboard";
+import StaffDashboard from "./components/StaffDashboard";
 import { useAuth } from "./AuthContext";
+import type { CurrentStatus, RequestedPriority } from "./api";
 
 type Screen =
   | "tickets"
@@ -15,7 +18,8 @@ type Screen =
   | "detail"
   | "queue"
   | "staff-detail"
-  | "admin-users";
+  | "admin-users"
+  | "dashboard";
 
 const ROLE_LABELS: Record<string, string> = {
   REQUESTER: "Requester",
@@ -32,8 +36,11 @@ function AuthenticatedShell() {
   const isAdmin = user?.role === "ADMINISTRATOR";
 
   const [screen, setScreen] = useState<Screen>(
-    isStaffOrAdmin ? "queue" : "tickets"
+    "dashboard"
   );
+  const [ticketStatusFilter, setTicketStatusFilter] = useState<CurrentStatus | undefined>();
+  const [queueFilter, setQueueFilter] = useState<{ status?: CurrentStatus; owner?: "me" | "unassigned" | "all"; priority?: RequestedPriority }>({});
+  const [focusQueueSearch, setFocusQueueSearch] = useState(false);
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(
     null
   );
@@ -56,6 +63,23 @@ function AuthenticatedShell() {
     setScreen("tickets");
   }
 
+  function handleViewTickets(status?: CurrentStatus) {
+    setTicketStatusFilter(status);
+    setScreen("tickets");
+  }
+
+  function handleViewQueue(filter: { status?: CurrentStatus; owner?: "me" | "unassigned"; priority?: RequestedPriority } = {}) {
+    setQueueFilter(filter);
+    setFocusQueueSearch(false);
+    setScreen("queue");
+  }
+
+  function handleSearchTickets() {
+    setQueueFilter({});
+    setFocusQueueSearch(true);
+    setScreen("queue");
+  }
+
   // Issue 5 — IT Staff Ticket Queue (GitHub Issue #32)
   function handleOpenStaffTicket(ticketId: number) {
     setSelectedTicketId(ticketId);
@@ -64,6 +88,8 @@ function AuthenticatedShell() {
 
   function handleBackToQueue() {
     setSelectedTicketId(null);
+    setQueueFilter({});
+    setFocusQueueSearch(false);
     setScreen("queue");
   }
 
@@ -128,22 +154,26 @@ function AuthenticatedShell() {
                   <button
                     type="button"
                     className="btn btn-sm"
-                    onClick={() => setScreen("tickets")}
+                    aria-current={screen === "dashboard" ? "page" : undefined}
+                    onClick={() => setScreen("dashboard")}
                     style={{
                       color: "#FFFFFF",
                       border: "none",
                       backgroundColor:
-                        screen === "tickets"
+                        screen === "dashboard"
                           ? "#0B7A46"
                           : "transparent",
                     }}
                   >
-                    My Tickets
+                    Dashboard
                   </button>
+
+                  <button type="button" className="btn btn-sm" aria-current={screen === "tickets" ? "page" : undefined} onClick={() => handleViewTickets()} style={{ color: "#FFFFFF", border: "none", backgroundColor: screen === "tickets" || screen === "detail" ? "#0B7A46" : "transparent" }}>My Tickets</button>
 
                   <button
                     type="button"
                     className="btn btn-sm"
+                    aria-current={screen === "create" ? "page" : undefined}
                     onClick={handleCreateTicket}
                     style={{
                       color: "#FFFFFF",
@@ -168,23 +198,27 @@ function AuthenticatedShell() {
                   <button
                     type="button"
                     className="btn btn-sm"
-                    onClick={handleBackToQueue}
+                    aria-current={screen === "dashboard" ? "page" : undefined}
+                    onClick={() => setScreen("dashboard")}
                     style={{
                       color: "#FFFFFF",
                       border: "none",
                       backgroundColor:
-                        screen === "queue" || screen === "staff-detail"
+                        screen === "dashboard"
                           ? "#0B7A46"
                           : "transparent",
                     }}
                   >
-                    My Queue
+                    Dashboard
                   </button>
+
+                  <button type="button" className="btn btn-sm" aria-current={screen === "queue" || screen === "staff-detail" ? "page" : undefined} onClick={handleBackToQueue} style={{ color: "#FFFFFF", border: "none", backgroundColor: screen === "queue" || screen === "staff-detail" ? "#0B7A46" : "transparent" }}>My Queue</button>
 
                   {isAdmin && (
                     <button
                       type="button"
                       className="btn btn-sm"
+                      aria-current={screen === "admin-users" ? "page" : undefined}
                       onClick={handleOpenUserManagement}
                       style={{
                         color: "#FFFFFF",
@@ -258,8 +292,10 @@ function AuthenticatedShell() {
         )}
 
         {isStaffOrAdmin && screen === "queue" && (
-          <StaffTicketQueue onOpenTicket={handleOpenStaffTicket} />
+          <StaffTicketQueue key={`${JSON.stringify(queueFilter)}-${focusQueueSearch}`} onOpenTicket={handleOpenStaffTicket} initialStatus={queueFilter.status} initialOwner={queueFilter.owner ?? "all"} initialPriority={queueFilter.priority} focusSearch={focusQueueSearch} />
         )}
+
+        {isStaffOrAdmin && screen === "dashboard" && <StaffDashboard name={user!.name} onOpenTicket={handleOpenStaffTicket} onViewQueue={handleViewQueue} onSearchTickets={handleSearchTickets} />}
 
         {isStaffOrAdmin &&
           screen === "staff-detail" &&
@@ -274,10 +310,14 @@ function AuthenticatedShell() {
 
         {isRequester && screen === "tickets" && (
           <MyTickets
+            key={ticketStatusFilter ?? "all"}
             onCreateTicket={handleCreateTicket}
             onOpenTicket={handleOpenTicket}
+            initialStatus={ticketStatusFilter}
           />
         )}
+
+        {isRequester && screen === "dashboard" && <RequesterDashboard name={user!.name} onCreateTicket={handleCreateTicket} onOpenTicket={handleOpenTicket} onViewTickets={handleViewTickets} />}
 
         {isRequester && screen === "create" && (
           <CreateTicket
