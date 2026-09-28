@@ -88,3 +88,106 @@
     min-height: 48px;
   }
 }
+
+/* Lab 4 staff dashboard: concise Zen Green operational overview. */
+.dashboard-card {
+  border: 1px solid #e0e6e2;
+  background: #fff;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.dashboard-card:hover {
+  border-color: #70a98b;
+  transform: translateY(-2px);
+}
+
+.dashboard-card:focus-visible,
+.dashboard-quick-action:focus-visible {
+  outline: 3px solid #80bd9b;
+  outline-offset: 3px;
+}
+
+.dashboard-quick-action {
+  width: 100%;
+  min-height: 120px;
+  border: 1px solid #e0e6e2;
+  border-radius: 10px;
+  background: #fbfdfc;
+  color: #166534;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  font-weight: 600;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.dashboard-quick-action-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.dashboard-insight {
+  text-align: center;
+}
+
+.dashboard-insight small {
+  display: block;
+  color: #5a6e65;
+  font-weight: 400;
+  font-size: 0.875rem;
+  line-height: 1.25;
+}
+
+.dashboard-insight strong {
+  display: block;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.requester-quick-action {
+  width: 100%;
+  min-height: 102px;
+  border: 1px solid #d8e1dc;
+  border-radius: 10px;
+  background: #fff;
+  color: #166534;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  text-align: left;
+}
+
+.requester-quick-action:hover {
+  border-color: #70a98b;
+  background: #fbfdfc;
+}
+
+.requester-quick-action:focus-visible {
+  outline: 3px solid #80bd9b;
+  outline-offset: 3px;
+}
+
+.requester-quick-action-icon {
+  flex: 0 0 auto;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.requester-quick-action strong,
+.requester-quick-action small {
+  display: block;
+}
+
+.requester-quick-action strong {
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+
+.requester-quick-action small {
+  margin-top: 0.3rem;
+  color: #45594f;
+}
