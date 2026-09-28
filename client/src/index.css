@@ -102,7 +102,13 @@
 }
 
 .dashboard-card:focus-visible,
-.dashboard-quick-action:focus-visible {
+.dashboard-quick-action:focus-visible,
+.requester-quick-action:focus-visible,
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
   outline: 3px solid #80bd9b;
   outline-offset: 3px;
 }
@@ -164,11 +170,6 @@
 .requester-quick-action:hover {
   border-color: #70a98b;
   background: #fbfdfc;
-}
-
-.requester-quick-action:focus-visible {
-  outline: 3px solid #80bd9b;
-  outline-offset: 3px;
 }
 
 .requester-quick-action-icon {

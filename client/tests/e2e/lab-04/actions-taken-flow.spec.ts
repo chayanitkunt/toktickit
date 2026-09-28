@@ -1,8 +1,17 @@
 import { test, expect, type Page } from "@playwright/test";
+import { fileURLToPath } from "url";
+import path from "path";
+import fs from "fs";
 
 const PASSWORD = "ChangeMe123!";
 const REQUESTER = "quinn.requester@example.com";
 const STAFF = "michael.brown@tiktockit.com";
+const screenshotRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../artifacts/lab-04/screenshots/actions-taken");
+
+function screenshotPath(project: string) {
+  fs.mkdirSync(screenshotRoot, { recursive: true });
+  return path.join(screenshotRoot, `staff-actions-${project}.png`);
+}
 
 async function login(page: Page, email: string) {
   await page.goto("/");
@@ -18,7 +27,7 @@ async function logout(page: Page) {
 test("IT Staff records an Action Taken and the Requester sees it read-only", async ({ page }, testInfo) => {
   const summary = `E2E Actions Taken ${Date.now()}`;
   await login(page, REQUESTER);
-  await page.getByRole("main").getByRole("button", { name: "+ Create Ticket" }).click();
+  await page.getByRole("button", { name: /Create Ticket.*Submit a new request/i }).click();
   const selects = page.locator("select");
   await selects.nth(0).selectOption({ label: "Hardware" });
   await selects.nth(1).selectOption({ label: "Corporate Laptop" });
@@ -30,6 +39,7 @@ test("IT Staff records an Action Taken and the Requester sees it read-only", asy
   await logout(page);
 
   await login(page, STAFF);
+  await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "My Queue", exact: true }).click();
   await expect(page.getByRole("heading", { name: "My Queue", exact: true })).toBeVisible();
   await page.getByLabel(/^search$/i).fill(summary);
   const row = page.locator("tr", { hasText: summary });
@@ -48,9 +58,11 @@ test("IT Staff records an Action Taken and the Requester sees it read-only", asy
     ? page.locator(".d-lg-block")
     : page.locator(".d-lg-none");
   await expect(visibleActionLayout.getByText("Reseated the network cable.")).toBeVisible();
+  await page.screenshot({ path: screenshotPath(testInfo.project.name), fullPage: true });
   await logout(page);
 
   await login(page, REQUESTER);
+  await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "My Tickets", exact: true }).click();
   await page.getByLabel(/^search$/i).fill(summary);
   await page.locator("tbody tr", { hasText: summary }).getByRole("button").click();
   await expect(visibleActionLayout.getByText("Reseated the network cable.")).toBeVisible();
