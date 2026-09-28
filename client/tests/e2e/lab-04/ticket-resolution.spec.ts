@@ -14,7 +14,7 @@ async function login(page: Page, email: string) {
 test("Resolved is gated until IT Staff records an Action Taken", async ({ page }) => {
   const summary = `E2E resolution gate ${Date.now()}`;
   await login(page, REQUESTER);
-  await page.getByRole("main").getByRole("button", { name: "+ Create Ticket" }).click();
+  await page.getByRole("button", { name: /Create Ticket.*Submit a new request/i }).click();
   const selects = page.locator("select");
   await selects.nth(0).selectOption({ label: "Hardware" });
   await selects.nth(1).selectOption({ label: "Corporate Laptop" });
@@ -26,6 +26,7 @@ test("Resolved is gated until IT Staff records an Action Taken", async ({ page }
   await page.getByTestId("current-user-identity").getByRole("button", { name: /logout/i }).click();
 
   await login(page, STAFF);
+  await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "My Queue", exact: true }).click();
   await page.getByLabel(/^search$/i).fill(summary);
   await page.locator("tr", { hasText: summary }).getByRole("button").click();
   const status = page.getByLabel(/current status/i);

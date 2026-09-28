@@ -147,3 +147,46 @@ Every AC in `specification.md` §9 maps to at least one row above:
 | AC-15 | REGRESSION-01, REGRESSION-02, E2E-06 |
 | AC-16 | API-28, UI-13, E2E-04 |
 | AC-17 | API-18 |
+
+## 12. Completed Visual and Accessibility Checklist
+
+Completed for Issue #58 on 2026-09-28. Desktop is Playwright `chromium` (1280 × 720), tablet is
+`tablet` (768 × 1024), and mobile is `mobile` (390 × 844). The screenshot tests load real Lab 4
+dashboard and Actions Taken flows rather than static fixture pages.
+
+### Screenshot evidence
+
+| Screen | Desktop | Tablet | Mobile |
+|---|---|---|---|
+| IT Staff dashboard | `artifacts/lab-04/screenshots/staff-dashboard/dashboard-chromium.png` | `artifacts/lab-04/screenshots/staff-dashboard/dashboard-tablet.png` | `artifacts/lab-04/screenshots/staff-dashboard/dashboard-mobile.png` |
+| Requester dashboard | `artifacts/lab-04/screenshots/requester-dashboard/dashboard-chromium.png` | `artifacts/lab-04/screenshots/requester-dashboard/dashboard-tablet.png` | `artifacts/lab-04/screenshots/requester-dashboard/dashboard-mobile.png` |
+| Actions Taken (IT Staff) | `artifacts/lab-04/screenshots/actions-taken/staff-actions-chromium.png` | `artifacts/lab-04/screenshots/actions-taken/staff-actions-tablet.png` | `artifacts/lab-04/screenshots/actions-taken/staff-actions-mobile.png` |
+
+### Completed checks
+
+| # | Check | Result | Evidence / implementation |
+|---|---|---|---|
+| 1 | Zen Green visual consistency | Pass | New dashboard cards, buttons, panels, badges, and Actions Taken reuse the existing green palette, borders, spacing, and typography. |
+| 2 | Status and IT priority are understandable without color | Pass | Every status and priority badge includes a text label (for example, `New`, `Resolved`, `Medium`); color is supplementary. |
+| 3 | Private versus shared content is distinct | Pass | Staff Ticket Detail labels the private tab `🔒 Internal Notes`; Public Comments and Attachments remain separately named. |
+| 4 | Semantic controls and accessible names | Pass | Dashboard cards are native buttons with descriptive `aria-label`s; form fields have associated labels; Follow-Up is a labelled radio fieldset; status control has a visible label. |
+| 5 | Keyboard operation and visible focus | Pass | Dashboard cards, Quick Actions, navigation, Actions Taken controls, form inputs, and status controls are native keyboard-focusable elements. `:focus-visible` uses a 3px Zen Green outline with an offset. |
+| 6 | Dashboard drill-downs | Pass | Requester cards route to filtered My Tickets; Staff cards route to filtered My Queue; Search Tickets focuses the Queue Search input. Component and E2E tests cover these handlers. |
+| 7 | Loading, empty, error, conflict, and validation feedback | Pass | Dashboards use skeleton/empty/retry states; Actions Taken uses labelled loading, validation, server-error, and stale-update feedback; workflow exposes resolution-gate and stale-update messages. |
+| 8 | Responsive layout and no horizontal page overflow | Pass | Cards use desktop grids, tablet wrapping, and mobile stacking. Actions Taken switches from desktop table to stacked cards below the large breakpoint. Screenshot review at all three required viewports found no clipping or page-level horizontal overflow. |
+| 9 | Existing workflow remains reachable | Pass | Dashboard is the authenticated landing screen; role navigation exposes My Tickets/Create Ticket to Requesters, My Queue to Staff, and Dashboard/My Queue/Users to Administrators. |
+| 10 | Administrator dashboard behavior | Pass | Administrator reuses the Staff Dashboard and retains Users navigation; covered in `client/tests/e2e/lab-04/dashboards.spec.ts`. |
+
+### Automated evidence
+
+```bash
+cd client
+npm run build
+npx vitest run tests/lab-04/RequesterDashboard.test.tsx tests/lab-04/StaffDashboard.test.tsx
+npx playwright test tests/e2e/lab-04/actions-taken-flow.spec.ts --project=chromium --project=tablet --project=mobile
+npx playwright test tests/e2e/lab-04/dashboards.spec.ts --project=chromium --project=tablet --project=mobile
+```
+
+The screenshot capture is built into the two Lab 4 E2E files above, so rerunning them refreshes the
+evidence paths in this section. No unresolved visual or accessibility findings remain for the new
+Lab 4 dashboard and Actions Taken screens.
