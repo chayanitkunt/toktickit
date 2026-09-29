@@ -16,7 +16,7 @@ import {
   requireRole,
 } from "./auth.js";
 import { isValidStatusTransition } from "./ticketStatusTransitions.js";
-import type { CurrentStatus as PrismaCurrentStatus, Role as PrismaRole } from "@prisma/client";
+import { Prisma, type CurrentStatus as PrismaCurrentStatus, type Role as PrismaRole } from "@prisma/client";
 
 
 // getPrisma() is your lazy database handle. Call it INSIDE a route when you
@@ -374,6 +374,66 @@ const requireAdmin = [
   requireRole("ADMINISTRATOR"),
 ];
 
+// ---------------------------------------------------------------------------
+// Lab 4 — role-scoped dashboard summaries. These deliberately return only
+// counts and bounded ticket summaries, never an unfiltered Ticket collection.
+// All scopes come from the session; query parameters are ignored.
+// ---------------------------------------------------------------------------
+const dashboardTicketSelect = {
+  id: true,
+  ticketNumber: true,
+  summary: true,
+  currentStatus: true,
+  updatedAt: true,
+} as const;
+
+app.get("/api/dashboard/requester", ...requireRequester, async (req: Request, res: Response) => {
+  try {
+    const requesterId = req.currentUser!.id;
+    const prisma = getPrisma();
+    const requesterWhere = { requesterId };
+    const [myOpenTickets, waitingForRequester, resolved, closed, recentlyUpdatedTickets, recentlyResolvedTickets] = await Promise.all([
+      prisma.ticket.count({ where: { ...requesterWhere, currentStatus: { in: ["NEW", "OPEN", "IN_PROGRESS", "REOPENED"] } } }),
+      prisma.ticket.count({ where: { ...requesterWhere, currentStatus: "WAITING_FOR_REQUESTER" } }),
+      prisma.ticket.count({ where: { ...requesterWhere, currentStatus: "RESOLVED" } }),
+      prisma.ticket.count({ where: { ...requesterWhere, currentStatus: "CLOSED" } }),
+      prisma.ticket.findMany({ where: requesterWhere, select: dashboardTicketSelect, orderBy: { updatedAt: "desc" }, take: 5 }),
+      prisma.ticket.findMany({ where: { ...requesterWhere, currentStatus: { in: ["RESOLVED", "CLOSED"] } }, select: dashboardTicketSelect, orderBy: { updatedAt: "desc" }, take: 5 }),
+    ]);
+    return res.status(200).json({ myOpenTickets, waitingForRequester, resolved, closed, recentlyUpdatedTickets, recentlyResolvedTickets });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Unable to retrieve requester dashboard", code: "server_error" });
+  }
+});
+
+app.get("/api/dashboard/staff", ...requireStaff, async (req: Request, res: Response) => {
+  try {
+    const userId = req.currentUser!.id;
+    const prisma = getPrisma();
+    const openWhere = { currentStatus: { notIn: ["CLOSED", "CANCELLED"] as PrismaCurrentStatus[] } };
+    const [statusGroups, priorityGroups, unassigned, myAssigned, myRecentTickets] = await Promise.all([
+      prisma.ticket.groupBy({ by: ["currentStatus"], _count: { _all: true }, where: { currentStatus: { in: ["NEW", "OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER"] } } }),
+      prisma.ticket.groupBy({ by: ["itPriority"], _count: { _all: true }, where: openWhere }),
+      prisma.ticket.count({ where: { ownerId: null, ...openWhere } }),
+      prisma.ticket.count({ where: { ownerId: userId, currentStatus: { notIn: ["CLOSED", "CANCELLED", "RESOLVED"] } } }),
+      prisma.ticket.findMany({ where: { ownerId: userId }, select: dashboardTicketSelect, orderBy: { updatedAt: "desc" }, take: 5 }),
+    ]);
+    const statusCount = (status: PrismaCurrentStatus) => statusGroups.find((group) => group.currentStatus === status)?._count._all ?? 0;
+    const priorityCount = (priority: "LOW" | "MEDIUM" | "HIGH") => priorityGroups.find((group) => group.itPriority === priority)?._count._all ?? 0;
+    return res.status(200).json({
+      byStatus: { new: statusCount("NEW"), open: statusCount("OPEN"), inProgress: statusCount("IN_PROGRESS"), waitingForRequester: statusCount("WAITING_FOR_REQUESTER") },
+      unassigned,
+      myAssigned,
+      byItPriority: { low: priorityCount("LOW"), medium: priorityCount("MEDIUM"), high: priorityCount("HIGH") },
+      myRecentTickets,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Unable to retrieve staff dashboard", code: "server_error" });
+  }
+});
+
 const ALLOWED_ROLES = ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"];
 
 const ADMIN_USER_SELECT = {
@@ -667,17 +727,17 @@ app.get("/api/tickets", ...requireRequester, async (req: Request, res: Response)
         "CANCELLED",
       ];
 
-      if (
-        typeof status !== "string" ||
-        !allowedStatuses.includes(status)
-      ) {
+      const requestedStatuses = typeof status === "string" ? status.split(",") : [];
+      if (!requestedStatuses.length || requestedStatuses.some((value) => !allowedStatuses.includes(value))) {
         return res.status(400).json({
           statusCode: 400,
           message: "Invalid status",
         });
       }
 
-      where.currentStatus = status;
+      where.currentStatus = requestedStatuses.length === 1
+        ? requestedStatuses[0]
+        : { in: requestedStatuses };
     }
 
     // ---------------------------------------------------------
@@ -1199,6 +1259,69 @@ async function loadStaffTicketOrRespond(
   return ticket;
 }
 
+function parseExpectedUpdatedAt(value: unknown): Date | null {
+  if (typeof value !== "string" || value.trim() === "") return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+type ActionTakenInput = {
+  description: string;
+  result: string;
+  followUpRequired: boolean;
+  followUpNote: string | null;
+  attachmentNotes: string | null;
+};
+
+function validateActionTakenInput(value: Record<string, unknown>): ActionTakenInput | null {
+  const description = typeof value.description === "string" ? value.description.trim() : "";
+  const result = typeof value.result === "string" ? value.result.trim() : "";
+  const attachmentNotes = typeof value.attachmentNotes === "string" ? value.attachmentNotes.trim() : "";
+  const followUpNote = typeof value.followUpNote === "string" ? value.followUpNote.trim() : "";
+
+  if (!description || description.length > 2000 || !result || result.length > 2000) return null;
+  if (typeof value.followUpRequired !== "boolean" || attachmentNotes.length > 500) return null;
+  if (value.followUpRequired ? !followUpNote : !!followUpNote) return null;
+
+  return {
+    description,
+    result,
+    followUpRequired: value.followUpRequired,
+    followUpNote: followUpNote || null,
+    attachmentNotes: attachmentNotes || null,
+  };
+}
+
+function parseIdempotencyKey(value: string | undefined): string | null | "invalid" {
+  if (value === undefined) return null;
+  const key = value.trim();
+  return key.length > 0 && key.length <= 255 ? key : "invalid";
+}
+
+const ACTION_TAKEN_INCLUDE = {
+  performedBy: { select: { id: true, name: true } },
+} as const;
+
+function actionTakenResponse(action: {
+  id: number; ticketId: number; actionAt: Date; description: string; result: string;
+  followUpRequired: boolean; followUpNote: string | null; attachmentNotes: string | null;
+  createdAt: Date; updatedAt: Date; performedBy: { id: number; name: string };
+}) {
+  return {
+    id: action.id,
+    ticketId: action.ticketId,
+    actionAt: action.actionAt,
+    description: action.description,
+    result: action.result,
+    performedBy: action.performedBy,
+    followUpRequired: action.followUpRequired,
+    followUpNote: action.followUpNote,
+    attachmentNotes: action.attachmentNotes,
+    createdAt: action.createdAt,
+    updatedAt: action.updatedAt,
+  };
+}
+
 // GET /api/staff/eligible-owners — active IT Staff/Administrator users, for
 // the Ticket Owner dropdown (ui-spec.md §5). Not part of the original
 // api-spec.md table; documented as an addition there alongside this route,
@@ -1337,7 +1460,7 @@ app.patch(
       const ticket = await loadStaffTicketOrRespond(res, ticketId);
       if (!ticket) return;
 
-      const { currentStatus } = req.body ?? {};
+      const { currentStatus, expectedUpdatedAt } = req.body ?? {};
 
       if (
         typeof currentStatus !== "string" ||
@@ -1348,20 +1471,58 @@ app.patch(
           code: "invalid_input",
         });
       }
-
-      if (!isValidStatusTransition(ticket.currentStatus, currentStatus)) {
-        return res.status(422).json({
-          error: `Cannot move a ticket from ${ticket.currentStatus} to ${currentStatus}`,
-          code: "invalid_transition",
+      const expectedDate = parseExpectedUpdatedAt(expectedUpdatedAt);
+      if (!expectedDate) {
+        return res.status(400).json({
+          error: "expectedUpdatedAt must be an ISO timestamp",
+          code: "invalid_input",
         });
       }
 
-      const updated = await getPrisma().ticket.update({
-        where: { id: ticketId },
-        data: { currentStatus: currentStatus as PrismaCurrentStatus },
+      const outcome = await getPrisma().$transaction(async (tx) => {
+        const current = await tx.ticket.findUnique({ where: { id: ticketId } });
+        if (!current) return { kind: "not_found" as const };
+        if (current.updatedAt.getTime() !== expectedDate.getTime()) {
+          return { kind: "stale" as const };
+        }
+        if (!isValidStatusTransition(current.currentStatus, currentStatus)) {
+          return { kind: "illegal" as const, from: current.currentStatus };
+        }
+        if (currentStatus === "RESOLVED") {
+          const actionCount = await tx.actionTaken.count({ where: { ticketId } });
+          if (actionCount === 0) return { kind: "resolution_gate" as const };
+        }
+        // Comparing updatedAt in the write makes the check-and-write atomic
+        // even when two requests race after the read above.
+        const changed = await tx.ticket.updateMany({
+          where: { id: ticketId, updatedAt: expectedDate },
+          data: { currentStatus: currentStatus as PrismaCurrentStatus },
+        });
+        if (changed.count !== 1) return { kind: "stale" as const };
+        const updated = await tx.ticket.findUniqueOrThrow({ where: { id: ticketId } });
+        return { kind: "updated" as const, updated };
       });
 
-      return res.status(200).json({ id: updated.id, currentStatus: updated.currentStatus });
+      if (outcome.kind === "stale") {
+        return res.status(409).json({ error: "This ticket has been updated by someone else", code: "stale_ticket" });
+      }
+      if (outcome.kind === "illegal") {
+        return res.status(422).json({
+          error: `Cannot move a ticket from ${outcome.from} to ${currentStatus}`,
+          code: "illegal_status_transition",
+        });
+      }
+      if (outcome.kind === "resolution_gate") {
+        return res.status(422).json({
+          error: "At least one Action Taken is required before resolving a ticket",
+          code: "resolution_requires_action_taken",
+        });
+      }
+      if (outcome.kind === "not_found") {
+        return res.status(404).json({ error: "Ticket not found", code: "not_found" });
+      }
+
+      return res.status(200).json({ id: outcome.updated.id, currentStatus: outcome.updated.currentStatus, updatedAt: outcome.updated.updatedAt });
     } catch (error) {
       console.error(error);
       return res.status(500).json({
@@ -1462,6 +1623,140 @@ app.post(
         error: "Unable to post Internal Note",
         code: "server_error",
       });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Lab 4 — Actions Taken.  These are separate from comments and notes: the
+// work record is editable with optimistic concurrency, but its performer and
+// server timestamp are immutable audit fields.
+// ---------------------------------------------------------------------------
+app.post(
+  "/api/staff/tickets/:id/actions",
+  ...requireStaff,
+  async (req: Request, res: Response) => {
+    try {
+      const ticketId = Number(req.params.id);
+      const ticket = await loadStaffTicketOrRespond(res, ticketId);
+      if (!ticket) return;
+
+      const input = validateActionTakenInput(req.body ?? {});
+      if (!input) {
+        return res.status(400).json({
+          error: "Description and result are required; check follow-up and attachment notes",
+          code: "invalid_input",
+        });
+      }
+
+      const idempotencyKey = parseIdempotencyKey(req.get("Idempotency-Key"));
+      if (idempotencyKey === "invalid") {
+        return res.status(400).json({ error: "Idempotency-Key must be 1 to 255 characters", code: "invalid_input" });
+      }
+
+      // A browser/network retry carries the same key. Return the original
+      // record rather than appending a duplicate audit entry.
+      if (idempotencyKey) {
+        const existing = await getPrisma().actionTaken.findFirst({
+          where: { ticketId, performedById: req.currentUser!.id, idempotencyKey },
+          include: ACTION_TAKEN_INCLUDE,
+        });
+        if (existing) return res.status(200).json(actionTakenResponse(existing));
+      }
+
+      try {
+        const action = await getPrisma().actionTaken.create({
+          data: {
+            ticketId, performedById: req.currentUser!.id, actionAt: new Date(),
+            idempotencyKey, ...input,
+          },
+          include: ACTION_TAKEN_INCLUDE,
+        });
+        return res.status(201).json(actionTakenResponse(action));
+      } catch (error) {
+        // The unique index is the race-safe half of idempotency: two requests
+        // can both miss the lookup above, but only one can insert.
+        if (idempotencyKey && error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+          const existing = await getPrisma().actionTaken.findFirst({
+            where: { ticketId, performedById: req.currentUser!.id, idempotencyKey },
+            include: ACTION_TAKEN_INCLUDE,
+          });
+          if (existing) return res.status(200).json(actionTakenResponse(existing));
+        }
+        throw error;
+      }
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({ error: "Unable to create Action Taken", code: "server_error" });
+    }
+  }
+);
+
+app.patch(
+  "/api/staff/tickets/:id/actions/:actionId",
+  ...requireStaff,
+  async (req: Request, res: Response) => {
+    try {
+      const ticketId = Number(req.params.id);
+      const actionId = Number(req.params.actionId);
+      if (!Number.isInteger(ticketId) || ticketId <= 0 || !Number.isInteger(actionId) || actionId <= 0) {
+        return res.status(400).json({ error: "Invalid ticket or action id", code: "invalid_input" });
+      }
+      const expectedDate = parseExpectedUpdatedAt(req.body?.expectedUpdatedAt);
+      if (!expectedDate) {
+        return res.status(400).json({ error: "expectedUpdatedAt must be an ISO timestamp", code: "invalid_input" });
+      }
+
+      const outcome = await getPrisma().$transaction(async (tx) => {
+        const existing = await tx.actionTaken.findFirst({ where: { id: actionId, ticketId } });
+        if (!existing) return { kind: "not_found" as const };
+        if (existing.updatedAt.getTime() !== expectedDate.getTime()) return { kind: "stale" as const };
+
+        // Immutable fields are intentionally not read from the request.
+        const candidate = validateActionTakenInput({
+          description: req.body?.description === undefined ? existing.description : req.body.description,
+          result: req.body?.result === undefined ? existing.result : req.body.result,
+          followUpRequired: req.body?.followUpRequired === undefined ? existing.followUpRequired : req.body.followUpRequired,
+          followUpNote: req.body?.followUpNote === undefined ? existing.followUpNote ?? "" : req.body.followUpNote,
+          attachmentNotes: req.body?.attachmentNotes === undefined ? existing.attachmentNotes ?? "" : req.body.attachmentNotes,
+        });
+        if (!candidate) return { kind: "invalid" as const };
+        const changed = await tx.actionTaken.updateMany({
+          where: { id: actionId, ticketId, updatedAt: expectedDate },
+          data: candidate,
+        });
+        if (changed.count !== 1) return { kind: "stale" as const };
+        const action = await tx.actionTaken.findUniqueOrThrow({ where: { id: actionId }, include: ACTION_TAKEN_INCLUDE });
+        return { kind: "updated" as const, action };
+      });
+
+      if (outcome.kind === "not_found") return res.status(404).json({ error: "Action Taken not found", code: "not_found" });
+      if (outcome.kind === "stale") return res.status(409).json({ error: "This Action Taken has been updated by someone else", code: "stale_action_taken" });
+      if (outcome.kind === "invalid") return res.status(400).json({ error: "Invalid Action Taken fields", code: "invalid_input" });
+      return res.status(200).json(actionTakenResponse(outcome.action));
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({ error: "Unable to update Action Taken", code: "server_error" });
+    }
+  }
+);
+
+app.get(
+  "/api/tickets/:id/actions",
+  requireAuth,
+  requirePasswordChangeComplete,
+  async (req: Request, res: Response) => {
+    try {
+      const ticketId = Number(req.params.id);
+      const ticket = await loadCommentableTicket(req, res, ticketId);
+      if (!ticket) return;
+      const actions = await getPrisma().actionTaken.findMany({
+        where: { ticketId }, orderBy: [{ actionAt: "asc" }, { id: "asc" }], include: ACTION_TAKEN_INCLUDE,
+      });
+      return res.status(200).json(actions.map(actionTakenResponse));
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({ error: "Unable to retrieve Actions Taken", code: "server_error" });
     }
   }
 );

@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../AuthContext";
+import ActionsTaken from "./ActionsTaken";
 import {
+  ApiRequestError,
   claimTicket,
   downloadAttachment,
   getComments,
   getEligibleOwners,
   getInternalNotes,
+  getActionsTaken,
   getStaffTicketDetail,
   postComment,
   postInternalNote,
@@ -30,7 +33,8 @@ interface StaffTicketDetailProps {
   onBack: () => void;
 }
 
-type ActiveTab = "comments" | "notes" | "attachments";
+type ActiveTab = "comments" | "notes" | "attachments" | "actions";
+const TABS: ActiveTab[] = ["comments", "notes", "attachments", "actions"];
 
 function formatDate(date?: string) {
   if (!date) return "-";
@@ -127,6 +131,9 @@ export default function StaffTicketDetail({
   // Status
   const [savingStatus, setSavingStatus] = useState(false);
   const [statusError, setStatusError] = useState("");
+  const [statusConflict, setStatusConflict] = useState(false);
+  const [actionCount, setActionCount] = useState<number | null>(null);
+  const actionCountRequestVersion = useRef(0);
 
   // Public Comments
   const [comments, setComments] = useState<TicketComment[]>([]);
@@ -233,6 +240,33 @@ export default function StaffTicketDetail({
     };
   }, [loadTicket]);
 
+  // The resolution gate is a convenience hint; keep Ticket Detail usable if
+  // the separate Actions Taken read fails. The backend remains authoritative.
+  useEffect(() => {
+    if (loading || notFound || forbidden || error) return;
+    let cancelled = false;
+    const requestVersion = ++actionCountRequestVersion.current;
+    getActionsTaken(ticketId)
+      .then((actions) => {
+        if (!cancelled && requestVersion === actionCountRequestVersion.current) {
+          setActionCount(actions.length);
+        }
+      })
+      .catch(() => {
+        if (!cancelled && requestVersion === actionCountRequestVersion.current) {
+          setActionCount(null);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [ticketId, loading, notFound, forbidden, error]);
+
+  const handleActionsChanged = useCallback((count: number) => {
+    // Invalidate any in-flight initial count read: it may have started before
+    // the newly-created action was committed and must not overwrite this value.
+    actionCountRequestVersion.current += 1;
+    setActionCount(count);
+  }, []);
+
   // Load each tab's data lazily the first time it's opened, then keep it
   // cached — avoids fetching Internal Notes before the ticket/role check
   // above has even resolved.
@@ -319,9 +353,14 @@ export default function StaffTicketDetail({
     try {
       setSavingStatus(true);
       setStatusError("");
-      const updated = await updateTicketStatus(ticket.id, newStatus);
-      setTicket({ ...ticket, currentStatus: updated.currentStatus });
+      setStatusConflict(false);
+      const updated = await updateTicketStatus(ticket.id, newStatus, ticket.updatedAt);
+      setTicket({ ...ticket, currentStatus: updated.currentStatus, updatedAt: updated.updatedAt });
     } catch (err) {
+      if (err instanceof ApiRequestError && err.status === 409) {
+        setStatusConflict(true);
+        return;
+      }
       setStatusError(
         err instanceof Error ? err.message : "Unable to update ticket status"
       );
@@ -406,6 +445,10 @@ export default function StaffTicketDetail({
 
   const isCurrentOwner = !!ticket?.owner && ticket.owner.id === user?.id;
   const canClaim = !!ticket && !ticket.owner;
+  const allowedNextStatuses = ticket
+    ? getAllowedNextStatuses(ticket.currentStatus)
+    : [];
+  const resolutionBlocked = actionCount === 0 && allowedNextStatuses.includes("RESOLVED");
 
   function tabButtonStyle(tab: ActiveTab) {
     const active = activeTab === tab;
@@ -417,6 +460,16 @@ export default function StaffTicketDetail({
       fontWeight: active ? 700 : 500,
       padding: "0.5rem 1rem",
     } as const;
+  }
+
+  function handleTabKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, tab: ActiveTab) {
+    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft" && event.key !== "Home" && event.key !== "End") return;
+    event.preventDefault();
+    const current = TABS.indexOf(tab);
+    const next = event.key === "Home" ? 0 : event.key === "End" ? TABS.length - 1 : (current + (event.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length;
+    const nextTab = TABS[next];
+    setActiveTab(nextTab);
+    document.getElementById(`ticket-${ticketId}-tab-${nextTab}`)?.focus();
   }
 
   return (
@@ -675,8 +728,7 @@ export default function StaffTicketDetail({
                     className="form-select"
                     value=""
                     disabled={
-                      savingStatus ||
-                      getAllowedNextStatuses(ticket.currentStatus).length === 0
+                      savingStatus || allowedNextStatuses.length === 0
                     }
                     onChange={(e) => {
                       if (e.target.value) {
@@ -687,9 +739,9 @@ export default function StaffTicketDetail({
                     <option value="" disabled>
                       {savingStatus ? "Saving..." : "Change status to..."}
                     </option>
-                    {getAllowedNextStatuses(ticket.currentStatus).map(
+                    {allowedNextStatuses.map(
                       (status) => (
-                        <option key={status} value={status}>
+                        <option key={status} value={status} disabled={status === "RESOLVED" && actionCount === 0}>
                           {STATUS_LABELS[status]}
                         </option>
                       )
@@ -700,13 +752,29 @@ export default function StaffTicketDetail({
                       {statusError}
                     </div>
                   )}
+                  {resolutionBlocked && (
+                    <div className="small mt-1" style={{ color: "#B45309" }}>
+                      Add an Action Taken before resolving this Ticket. {" "}
+                      <button type="button" className="btn btn-link btn-sm p-0 align-baseline" onClick={() => setActiveTab("actions")}>
+                        Go to Actions Taken
+                      </button>
+                    </div>
+                  )}
+                  {statusConflict && (
+                    <div className="alert alert-warning py-2 px-3 mt-2 mb-0" role="alert">
+                      This ticket was updated by someone else. Reload to see the latest status before trying again.
+                      <button type="button" className="btn btn-link btn-sm p-0 ms-1 align-baseline" onClick={() => loadTicket(() => false)}>
+                        Reload
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Tabs: Public Comments | Internal Notes | Attachments |
-              Service Actions (reserved, disabled — Lab 4) */}
+          {/* Public Comments, private Internal Notes, Attachments, and the
+              Lab 4 Actions Taken work record. */}
           <div
             className="card"
             style={{ border: "1px solid #E0E6E2", borderRadius: "10px" }}
@@ -719,50 +787,62 @@ export default function StaffTicketDetail({
               <button
                 type="button"
                 role="tab"
+                id={`ticket-${ticketId}-tab-comments`}
+                aria-controls={`ticket-${ticketId}-panel-comments`}
                 aria-selected={activeTab === "comments"}
+                tabIndex={activeTab === "comments" ? 0 : -1}
                 className="btn"
                 style={tabButtonStyle("comments")}
                 onClick={() => setActiveTab("comments")}
+                onKeyDown={(event) => handleTabKeyDown(event, "comments")}
               >
                 Public Comments ({comments.length})
               </button>
               <button
                 type="button"
                 role="tab"
+                id={`ticket-${ticketId}-tab-notes`}
+                aria-controls={`ticket-${ticketId}-panel-notes`}
                 aria-selected={activeTab === "notes"}
+                tabIndex={activeTab === "notes" ? 0 : -1}
                 className="btn"
                 style={tabButtonStyle("notes")}
                 onClick={() => setActiveTab("notes")}
+                onKeyDown={(event) => handleTabKeyDown(event, "notes")}
               >
                 🔒 Internal Notes ({notes.length})
               </button>
               <button
                 type="button"
                 role="tab"
+                id={`ticket-${ticketId}-tab-attachments`}
+                aria-controls={`ticket-${ticketId}-panel-attachments`}
                 aria-selected={activeTab === "attachments"}
+                tabIndex={activeTab === "attachments" ? 0 : -1}
                 className="btn"
                 style={tabButtonStyle("attachments")}
                 onClick={() => setActiveTab("attachments")}
+                onKeyDown={(event) => handleTabKeyDown(event, "attachments")}
               >
                 Attachments ({activeAttachments.length})
               </button>
               <button
                 type="button"
                 role="tab"
-                disabled
+                id={`ticket-${ticketId}-tab-actions`}
+                aria-controls={`ticket-${ticketId}-panel-actions`}
+                aria-selected={activeTab === "actions"}
+                tabIndex={activeTab === "actions" ? 0 : -1}
                 className="btn"
-                style={{
-                  ...tabButtonStyle("comments"),
-                  color: "#B7C2BC",
-                  cursor: "not-allowed",
-                }}
-                title="Available in Lab 4"
+                style={tabButtonStyle("actions")}
+                onClick={() => setActiveTab("actions")}
+                onKeyDown={(event) => handleTabKeyDown(event, "actions")}
               >
-                Service Actions
+                Actions Taken
               </button>
             </div>
 
-            <div className="card-body p-3 p-md-4">
+            <div className="card-body p-3 p-md-4" role="tabpanel" id={`ticket-${ticketId}-panel-${activeTab}`} aria-labelledby={`ticket-${ticketId}-tab-${activeTab}`}>
               {activeTab === "comments" && (
                 <div>
                   {commentsError && (
@@ -1018,6 +1098,10 @@ export default function StaffTicketDetail({
                     </ul>
                   )}
                 </div>
+              )}
+
+              {activeTab === "actions" && (
+                <ActionsTaken ticketId={ticketId} canEdit onActionsChanged={handleActionsChanged} />
               )}
             </div>
           </div>

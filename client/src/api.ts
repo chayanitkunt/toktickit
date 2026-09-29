@@ -21,6 +21,17 @@ export interface ApiErrorBody {
   details?: string[];
 }
 
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code?: string
+  ) {
+    super(message);
+    this.name = "ApiRequestError";
+  }
+}
+
 async function readJsonSafely(
   response: Response
 ): Promise<ApiErrorBody | null> {
@@ -211,7 +222,7 @@ export interface TicketListParams {
   search?: string;
   categoryId?: number;
   priority?: RequestedPriority;
-  status?: CurrentStatus;
+  status?: CurrentStatus | CurrentStatus[];
   sortBy?: string;
   sortOrder?: "asc" | "desc";
   page?: number;
@@ -239,7 +250,7 @@ export async function getMyTickets(
   }
 
   if (params.status) {
-    query.set("status", params.status);
+    query.set("status", Array.isArray(params.status) ? params.status.join(",") : params.status);
   }
 
   if (params.sortBy) {
@@ -416,6 +427,118 @@ export async function getTicketDetail(
   }
 
   return response.json();
+}
+
+// ---------------------------------------------------------
+// Lab 4 — Dashboard summaries
+// ---------------------------------------------------------
+export interface DashboardTicket {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  currentStatus: CurrentStatus;
+  updatedAt: string;
+}
+
+export interface RequesterDashboardData {
+  myOpenTickets: number;
+  waitingForRequester: number;
+  resolved: number;
+  closed: number;
+  recentlyUpdatedTickets: DashboardTicket[];
+  recentlyResolvedTickets: DashboardTicket[];
+}
+
+export interface StaffDashboardData {
+  byStatus: { new: number; open: number; inProgress: number; waitingForRequester: number };
+  unassigned: number;
+  myAssigned: number;
+  byItPriority: { low: number; medium: number; high: number };
+  myRecentTickets: DashboardTicket[];
+}
+
+async function getDashboard<T>(path: string): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, { credentials: "include" });
+  const result = await readJsonSafely(response);
+  if (!response.ok) {
+    throw new ApiRequestError(result?.error ?? "Unable to retrieve dashboard", response.status, result?.code);
+  }
+  return result as T;
+}
+
+export const getRequesterDashboard = () => getDashboard<RequesterDashboardData>("/api/dashboard/requester");
+export const getStaffDashboard = () => getDashboard<StaffDashboardData>("/api/dashboard/staff");
+
+// ---------------------------------------------------------
+// Lab 4 — Actions Taken
+// ---------------------------------------------------------
+export interface ActionTaken {
+  id: number;
+  ticketId: number;
+  actionAt: string;
+  description: string;
+  result: string;
+  performedBy: { id: number; name: string };
+  followUpRequired: boolean;
+  followUpNote: string | null;
+  attachmentNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ActionTakenInput {
+  description: string;
+  result: string;
+  followUpRequired: boolean;
+  followUpNote?: string;
+  attachmentNotes?: string;
+}
+
+async function actionTakenRequest(
+  path: string,
+  init?: RequestInit
+): Promise<ActionTaken | ActionTaken[]> {
+  const response = await fetch(`${API_URL}${path}`, {
+    credentials: "include",
+    ...init,
+  });
+  const result = await readJsonSafely(response);
+  if (!response.ok) {
+    throw new ApiRequestError(
+      result?.error ?? "Unable to process Action Taken",
+      response.status,
+      result?.code
+    );
+  }
+  return result as ActionTaken | ActionTaken[];
+}
+
+export async function getActionsTaken(ticketId: number): Promise<ActionTaken[]> {
+  return actionTakenRequest(`/api/tickets/${ticketId}/actions`) as Promise<ActionTaken[]>;
+}
+
+export async function createActionTaken(
+  ticketId: number,
+  input: ActionTakenInput,
+  idempotencyKey: string
+): Promise<ActionTaken> {
+  return actionTakenRequest(`/api/staff/tickets/${ticketId}/actions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify(input),
+  }) as Promise<ActionTaken>;
+}
+
+export async function updateActionTaken(
+  ticketId: number,
+  actionId: number,
+  input: ActionTakenInput & { expectedUpdatedAt: string }
+): Promise<ActionTaken> {
+  return actionTakenRequest(`/api/staff/tickets/${ticketId}/actions/${actionId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  }) as Promise<ActionTaken>;
 }
 
 export async function addAttachments(
@@ -715,27 +838,30 @@ export async function updateItPriority(
 
 export async function updateTicketStatus(
   ticketId: number,
-  currentStatus: CurrentStatus
-): Promise<{ id: number; currentStatus: CurrentStatus }> {
+  currentStatus: CurrentStatus,
+  expectedUpdatedAt: string
+): Promise<{ id: number; currentStatus: CurrentStatus; updatedAt: string }> {
   const response = await fetch(
     `${API_URL}/api/staff/tickets/${ticketId}/status`,
     {
       method: "PATCH",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ currentStatus }),
+      body: JSON.stringify({ currentStatus, expectedUpdatedAt }),
     }
   );
 
   const result = await readJsonSafely(response);
 
   if (!response.ok) {
-    throw new Error(
-      (result as unknown as ApiErrorBody)?.error ?? "Unable to update ticket status"
+    throw new ApiRequestError(
+      (result as unknown as ApiErrorBody)?.error ?? "Unable to update ticket status",
+      response.status,
+      (result as unknown as ApiErrorBody)?.code
     );
   }
 
-  return result as unknown as { id: number; currentStatus: CurrentStatus };
+  return result as unknown as { id: number; currentStatus: CurrentStatus; updatedAt: string };
 }
 
 // ---------------------------------------------------------------------------

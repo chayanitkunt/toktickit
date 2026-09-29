@@ -88,3 +88,158 @@
     min-height: 48px;
   }
 }
+
+/* Lab 4 staff dashboard: concise Zen Green operational overview. */
+.dashboard-card {
+  border: 1px solid #e0e6e2;
+  background: #fff;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.dashboard-card:hover {
+  border-color: #70a98b;
+  transform: translateY(-2px);
+}
+
+.dashboard-card:focus-visible,
+.dashboard-quick-action:focus-visible,
+.requester-quick-action:focus-visible,
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid #166534;
+  outline-offset: 3px;
+}
+
+header .btn:focus-visible,
+header button:focus-visible,
+header a:focus-visible {
+  outline: 3px solid #fff !important;
+  outline-offset: 3px;
+}
+
+header button {
+  white-space: nowrap;
+}
+
+@media (max-width: 575.98px) {
+  header .container-fluid > div {
+    align-items: flex-start !important;
+  }
+
+  header .container-fluid > div > div:first-child {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  header nav {
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap !important;
+    gap: 0.15rem !important;
+    margin-left: 0 !important;
+    padding-bottom: 0.15rem;
+  }
+
+  header nav .btn {
+    font-size: 0.78rem;
+    padding: 0.35rem 0.4rem;
+  }
+}
+
+.zg-audit-readonly {
+  background-color: #eef2f0 !important;
+  border-color: #b8c6be !important;
+  color: #45594f !important;
+}
+
+.actions-add-link {
+  color: #006b3c !important;
+}
+
+.actions-taken-form .form-check-input:checked {
+  background-color: #006b3c;
+  border-color: #006b3c;
+}
+
+.dashboard-quick-action {
+  width: 100%;
+  min-height: 120px;
+  border: 1px solid #e0e6e2;
+  border-radius: 10px;
+  background: #fbfdfc;
+  color: #166534;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  font-weight: 600;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.dashboard-quick-action-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.dashboard-insight {
+  text-align: center;
+}
+
+.dashboard-insight small {
+  display: block;
+  color: #5a6e65;
+  font-weight: 400;
+  font-size: 0.875rem;
+  line-height: 1.25;
+}
+
+.dashboard-insight strong {
+  display: block;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.requester-quick-action {
+  width: 100%;
+  min-height: 102px;
+  border: 1px solid #d8e1dc;
+  border-radius: 10px;
+  background: #fff;
+  color: #166534;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  text-align: left;
+}
+
+.requester-quick-action:hover {
+  border-color: #70a98b;
+  background: #fbfdfc;
+}
+
+.requester-quick-action-icon {
+  flex: 0 0 auto;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.requester-quick-action strong,
+.requester-quick-action small {
+  display: block;
+}
+
+.requester-quick-action strong {
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+
+.requester-quick-action small {
+  margin-top: 0.3rem;
+  color: #45594f;
+}

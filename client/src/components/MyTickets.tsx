@@ -11,6 +11,8 @@ import {
 interface MyTicketsProps {
   onCreateTicket?: () => void;
   onOpenTicket?: (ticketId: number) => void;
+  initialStatus?: CurrentStatus;
+  initialStatuses?: CurrentStatus[];
 }
 
 const MOBILE_BREAKPOINT = 767.98;
@@ -22,6 +24,8 @@ function getPageSize() {
 export default function MyTickets({
   onCreateTicket,
   onOpenTicket,
+  initialStatus,
+  initialStatuses,
 }: MyTicketsProps) {
   const [tickets, setTickets] = useState<TicketListItem[]>([]);
   const [meta, setMeta] = useState<TicketListMeta>({
@@ -37,7 +41,9 @@ export default function MyTickets({
     useState<RequestedPriority | undefined>();
   const [itPriority, setItPriority] =
     useState<RequestedPriority | undefined>();
-  const [status, setStatus] = useState<CurrentStatus | undefined>();
+  const [statuses, setStatuses] = useState<CurrentStatus[] | undefined>(
+    initialStatuses ?? (initialStatus ? [initialStatus] : undefined)
+  );
 
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
@@ -109,7 +115,7 @@ useEffect(() => {
           search,
           categoryId,
           priority: requestedPriority,
-          status,
+          status: statuses,
           sortBy,
           sortOrder,
           page: meta.page,
@@ -136,7 +142,7 @@ useEffect(() => {
     categoryId,
     requestedPriority,
     itPriority,
-    status,
+    statuses,
     sortBy,
     sortOrder,
     meta.page,
@@ -148,7 +154,7 @@ useEffect(() => {
     setCategoryId(undefined);
     setRequestedPriority(undefined);
     setItPriority(undefined);
-    setStatus(undefined);
+    setStatuses(undefined);
     setSortBy("createdAt");
     setSortOrder("desc");
 
@@ -415,15 +421,16 @@ useEffect(() => {
               <select
                 id="status-select"
                 className="form-select"
-                value={status ?? ""}
+                value={statuses?.join(",") ?? ""}
                 onChange={(event) => {
                   const value = event.target.value;
-                  setStatus(value ? (value as CurrentStatus) : undefined);
+                  setStatuses(value ? value.split(",") as CurrentStatus[] : undefined);
                   setMeta((previous) => ({ ...previous, page: 1 }));
                 }}
                 style={{ borderColor: "#C8D4CE" }}
               >
                 <option value="">All Statuses</option>
+                <option value="NEW,OPEN,IN_PROGRESS,REOPENED">Open Tickets</option>
                 <option value="NEW">New</option>
                 <option value="OPEN">Open</option>
                 <option value="IN_PROGRESS">In Progress</option>
