@@ -24,14 +24,15 @@ List of feature-branch PRs authored by @chayanitkunt and merged into `lab4-stagi
 | #67 | test: complete Lab 1-3 regression and final hardening | feat/7-lab1-3-regression-hardening → lab4-staging | https://github.com/chayanitkunt/toktickit/pull/67 | @chayongchaya | ✅ Approved & Merged (commit `c514c54`) |
 | #68 | test: complete Lab 4 visual and accessibility QA | feat/8-lab4-visual-responsive-accessibility-qa → lab4-staging | https://github.com/chayanitkunt/toktickit/pull/68 | @chayongchaya | ✅ Approved & Merged (commit `0e46b9b`) |
 | #69 | docs: add Lab 4 AI use documentation | docs/9-lab4-release-integration-submission → lab4-staging | https://github.com/chayanitkunt/toktickit/pull/69 | @chayongchaya | ✅ Approved & Merged (commit `c8f94f9`) |
+| #70 | docs: add Lab 4 peer review record | docs/10-lab4-reviewer-record → lab4-staging | https://github.com/chayanitkunt/toktickit/pull/70 | @chayongchaya | ✅ Approved & Merged (commit `daaeb74`) |
 
 ### 2.1 Final Release PR (lab4-staging → main)
 
 | PR # | Title | Branch → Target | Link | Reviewer(s) | Approval Status |
 | --- | --- | --- | --- | --- | --- |
-| `TODO` | `TODO: release PR title` | lab4-staging → main | `TODO: paste release PR link` | `TODO` | `TODO: Approved & Merged (commit ...)` |
+| #71 | docs: complete Lab 4 release integration and submission package | lab4-staging → main | https://github.com/chayanitkunt/toktickit/pull/71 | @chayongchaya | ✅ Approved (1 approving review, no conflicts with base branch) |
 
-`TODO: after the release PR is merged, add a short paragraph like Lab 3 (number of commits, PRs included, test results recorded at merge time, and the Issue it closes).`
+Release PR #71 consolidates all of Sprint 4 from `lab4-staging` into `main` in a single integration step: 23 commits and 60 changed files (+3,075 / −70 lines). It includes the ten reviewed feature/docs/test PRs #61–#70 — the Sprint 4 engineering contract, Actions Taken backend and UI, ticket resolution and optimistic concurrency enforcement, Requester and IT Staff dashboards, Lab 1–3 regression hardening, responsive/visual/accessibility QA, AI-use documentation, and this peer review record. Every one of those PRs had already been approved by @chayongchaya before merging into `lab4-staging`. The release PR was approved by @chayongchaya with no conflicts against `main`, and it closes Issue #60 (`Closes #60`). 
 
 ## 3. Pull Requests I Reviewed (chayongchaya/toktickit)
 
@@ -78,7 +79,8 @@ Comments the reviewer (@chayongchaya) left on this author's (@chayanitkunt) PR(s
 | #67 | General | "Thorough and rigorous final UI, accessibility, and regression hardening for Sprint 4. Standardizing Zen Green visual tokens and enforcing distinct, visible keyboard focus indicators across all dashboard and action controls elevates the overall WCAG compliance. Decoupling status indicators from relying on color alone, clearly partitioning internal audit logs from Requester views, and resolving the Dashboard-first navigation E2E regressions make the user experience rock-solid. With 48/48 client component tests, full regression suites, and cross-viewport visual screenshot evidence verified, this is fully approved and ready to merge." | "Thanks for the thorough review and approval! Glad the Zen Green styling, accessibility focus states, and cross-viewport screenshot evidence look good." | ✅ |
 | #68 | General | "Thorough and rigorous final UI, accessibility, and regression hardening for Sprint 4. Standardizing Zen Green visual tokens and enforcing distinct, visible keyboard focus indicators across all dashboard and action controls elevates the overall WCAG compliance. Decoupling status indicators from relying on color alone, clearly partitioning internal audit logs from Requester views, and resolving the Dashboard-first navigation E2E regressions make the user experience rock-solid. With 48/48 client component tests, full regression suites, and cross-viewport visual screenshot evidence verified, this is fully approved and ready to merge into `lab4-staging`." | "Thanks for the thorough review and approval! Glad the tab semantics, keyboard focus contrast, and multi-status API filtering look solid." | ✅ |
 | #69 | General | "Transparent, comprehensive, and well-structured AI-use documentation for Lab 4. The 10 representative prompts provide complete coverage across the entire development lifecycle—from early Spec-DD planning and database modeling to concurrency hardening, accessibility compliance, and final release preparation. The reflection critically highlights the human-in-the-loop verification process, demonstrating that AI outputs were systematically validated against the engineering contract and regression suites." | "Thanks for the review and approval! Glad the AI-use documentation and prompt reflection captured our workflow clearly." | ✅ |
-| Release | General | `TODO: paste reviewer comment on the release PR` | `TODO: paste your response` | `TODO` |
+| #70 | General | "Complete and meticulously prepared peer-review documentation for the Lab 4 submission package. Capturing author/reviewer identities, individual feature PR review logs, cross-repository peer review records, and structured review-response threads provides full auditing transparency. Leaving standardized placeholders for the final lab4-staging → main release PR ensures an orderly sign-off for Issue #60." | "Thanks for the review and approval! Glad the peer review log and audit trail structure look solid." | ✅ |
+| #71 (Release) | General | "This final release PR perfectly consolidates Sprint 4 into main. The entire engineering lifecycle—from initial Spec-DD planning and additive database migrations to Actions Taken audit trails, optimistic concurrency locking, role-aware dashboards, and WCAG accessibility hardening—has been executed to the highest standard. All regression test suites, cross-viewport Playwright E2E runs, AI-use reflections, and peer review logs are fully verified. Approved without reservation. Ready to merge into main and officially close Issue #60!" | "Thanks for the final review and approval! It's been an incredible sprint working together." | ✅ |
 
 ## 6. Final Approvals
 
@@ -95,11 +97,12 @@ Dates are estimated from the relative GitHub timestamps ("2 days ago", "yesterda
 | #67 | @chayongchaya | ~28 Sep 2026 | Lab 1–3 regression and final hardening approved. |
 | #68 | @chayongchaya | 29 Sep 2026 | Lab 4 visual, responsive, and accessibility QA approved. |
 | #69 | @chayongchaya | 29 Sep 2026 | Lab 4 AI-use documentation (10 prompts and reflection) approved. Part of Issue #60. |
-| Release | `TODO` | `TODO` | `TODO: Final release PR approved and merged: lab4-staging → main. Closes #60.` |
+| #70 | @chayongchaya | 29 Sep 2026 | Lab 4 peer review record (`reviewer.md`) approved and merged into `lab4-staging`. Part of Issue #60. |
+
 
 ## 7. Summary
 
-In Lab 4, @chayanitkunt authored docs/feature/test PRs (#61, #62, #63, #64, #65, #66, #67, #68, #69) in `chayanitkunt/toktickit`, all reviewed and approved by @chayongchaya before merging into `lab4-staging`. Code reviews verified:
+In Lab 4, @chayanitkunt authored docs/feature/test PRs (#61, #62, #63, #64, #65, #66, #67, #68, #69, #70) in `chayanitkunt/toktickit`, all reviewed and approved by @chayongchaya before merging into `lab4-staging`. Code reviews verified:
 * **Engineering Contract:** The Sprint 4 specification, UI spec, API spec, and test plan with Acceptance-Criterion traceability were reviewed and merged before the implementation PRs — chayanitkunt/toktickit#61.
 * **Actions Taken & Audit Integrity:** Additive Prisma migration preserving Lab 1–3 data, server-derived `performedBy` and Action Date/Time, requester read-only access, and a responsive Actions Taken UI with 409 conflict handling and duplicate-submission protection — chayanitkunt/toktickit#62, #63.
 * **Ticket Workflow & Concurrency:** Backend-enforced resolution gate (`resolution_requires_action_taken`) and `expectedUpdatedAt` stale-update detection (409 `stale_ticket`), with the full transition matrix covered by API tests — chayanitkunt/toktickit#64.
@@ -107,5 +110,5 @@ In Lab 4, @chayanitkunt authored docs/feature/test PRs (#61, #62, #63, #64, #65,
 * **Regression, Accessibility & Visual QA:** Lab 1–3 regression checks, Zen Green consistency, visible keyboard focus, tab semantics, multi-status filtering, and desktop/tablet/mobile screenshot evidence — chayanitkunt/toktickit#67, #68.
 
 * **AI-Use Documentation:** `docs/lab-04/ai-use.md` with 10 representative prompts across the Lab 4 lifecycle and a reflection on how AI suggestions were verified against the repository, tests, and approved specification — chayanitkunt/toktickit#69.
+* **Final Release:** Release PR chayanitkunt/toktickit#71 (`lab4-staging` → `main`, 23 commits, 60 files, +3,075 / −70) consolidates PRs #61–#70 and was approved by @chayongchaya with no merge conflicts. It closes Issue #60.
 * **Independent Cross-Repo Verification:** @chayongchaya's own `chayongchaya/toktickit` repository followed the same engineering workflow in parallel — PRs #86, #88, #90, #92, #94, #96, #97 (engineering contract, Actions Taken database/API/UI, test isolation, role dashboards, and coverage expansion) reviewed and approved by @chayanitkunt before merging into `lab4-staging`, with reported green suites at #97 (Server 122/122, Client 90/90, Lab 4 E2E 8 passed / 4 skipped).
-
