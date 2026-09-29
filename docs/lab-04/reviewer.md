@@ -47,11 +47,6 @@ List of feature-branch PRs authored by @chayongchaya and merged into `lab4-stagi
 | #96 | feat: Implement role-based Dashboards, navigation landing, and queue drill-down filters | feature/lab4-dashboards → lab4-staging | https://github.com/chayongchaya/toktickit/pull/96 | @chayongchaya | ✅ Approved & Merged (commit `08b9388`) |
 | #97 | test: Enhance Lab 4 test coverage, concurrency isolation, and verification documentation | test/lab4-coverage → lab4-staging | https://github.com/chayongchaya/toktickit/pull/97 | @chayongchaya | ✅ Approved & Merged (commit `b032c84`) |
 
-### 3.1 Final Release PR (lab4-staging → main) — chayongchaya/toktickit
-
-| PR # | Title | Branch → Target | Link | Author | Approval Status |
-| --- | --- | --- | --- | --- | --- |
-| `TODO` | `TODO: release PR title` | lab4-staging → main | `TODO: paste release PR link` | @chayongchaya | `TODO: Approved & Merged (commit ...)` |
 
 ## 4. Comments Given (as Reviewer)
 
@@ -66,7 +61,7 @@ Comments this author (@chayanitkunt) left on partner's (@chayongchaya) PR(s). No
 | #94 | "Essential and well-architected test-hardening fix. Replacing shared seeded records with dedicated, ephemeral fixtures and explicit afterEach teardown cleanly eliminates parallel database mutation collisions. Decoupling requester fixtures from the concurrent authentication suites guarantees deterministic execution and wipes out the intermittent race conditions. With 20/20 test files and 107/107 tests passing consistently, this is solid." | "Thank you so much for the thorough review and sign-off on the test-hardening fix." | ✅ |
 | #96 | "Approved!<br/>- **Visual Alignment Polish:** Great addition with commit 62af114 to fine-tune the dashboard visuals against the Sprint 4 UI specification.<br/>- **Full-Stack Execution:** Post-login /dashboard landing, URL search param drill-downs (?status=, ?owner=, ?currentStatus=), and role boundaries are rock solid.<br/>- **Test Integrity:** All API (10–17), UI (09–12), and E2E (05–06) test suites passing cleanly." | "Thank you so much for the comprehensive review and approval. The dashboard visuals, drill-down parameters, and role guards are officially locked in." | ✅ |
 | #97 | "Outstanding test stabilization and coverage expansion!<br/>- **Workflow & Concurrency Coverage:** ticket-workflow.api.test.ts thoroughly verifies WORKFLOW-01..06 and CONC-01 stale transition rules with isolated fixtures.<br/>- **DB Race Condition Fix:** Adding --no-file-parallelism to the server test script cleanly prevents shared PostgreSQL state pollution during integration runs.<br/>- **E2E & Spec Alignment:** Responsive locator fixes for mobile navbars and E2E specs for Actions Taken/Resolution keep testing aligned with docs/lab-04/tests.md." | "Thank you so much for the thorough review and sign-off on the test stabilization and coverage expansion! Passing --no-file-parallelism and refining the mobile navbar locators completely removes the remaining flakiness." | ✅ |
-| Release | `TODO: paste your review comment on her release PR` | `TODO: paste her response` | `TODO` |
+
 
 ## 5. Comments Received (as Author)
 
@@ -114,4 +109,3 @@ In Lab 4, @chayanitkunt authored docs/feature/test PRs (#61, #62, #63, #64, #65,
 * **AI-Use Documentation:** `docs/lab-04/ai-use.md` with 10 representative prompts across the Lab 4 lifecycle and a reflection on how AI suggestions were verified against the repository, tests, and approved specification — chayanitkunt/toktickit#69.
 * **Independent Cross-Repo Verification:** @chayongchaya's own `chayongchaya/toktickit` repository followed the same engineering workflow in parallel — PRs #86, #88, #90, #92, #94, #96, #97 (engineering contract, Actions Taken database/API/UI, test isolation, role dashboards, and coverage expansion) reviewed and approved by @chayanitkunt before merging into `lab4-staging`, with reported green suites at #97 (Server 122/122, Client 90/90, Lab 4 E2E 8 passed / 4 skipped).
 
-`TODO: after the release PRs are merged, add a **Documentation Finalization & Release** bullet (release PR number, commits merged into main, final server/client/E2E results, Issue #60 closed) and mention her release PR in the cross-repo bullet.`
