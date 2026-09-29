@@ -222,7 +222,7 @@ export interface TicketListParams {
   search?: string;
   categoryId?: number;
   priority?: RequestedPriority;
-  status?: CurrentStatus;
+  status?: CurrentStatus | CurrentStatus[];
   sortBy?: string;
   sortOrder?: "asc" | "desc";
   page?: number;
@@ -250,7 +250,7 @@ export async function getMyTickets(
   }
 
   if (params.status) {
-    query.set("status", params.status);
+    query.set("status", Array.isArray(params.status) ? params.status.join(",") : params.status);
   }
 
   if (params.sortBy) {

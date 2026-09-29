@@ -80,18 +80,18 @@ automated suite actually runs on `main`; it starts blank/`Planned`.
 ## 6. UI Style / Visual Consistency
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 |---|---|---|---|---|---|---|
-| STYLE-01 | UI Style | ui-spec §6 | Zen Green tokens on Dashboard + Actions Taken components (color, spacing, radius) | Matches design tokens from `docs/lab-02/ui-spec.md`; no ad-hoc hex values | Manual + visual check, screenshots in `artifacts/lab-04/screenshots/` | Planned |
-| STYLE-02 | UI Style | ui-spec §7 item 1 | App header wordmark | Reads "TokTickIT", not "TikTockIT" | Manual + screenshot | Planned |
-| STYLE-03 | UI Style | ui-spec §3 | Follow-Up badge non-color cue | Badge shows icon/text ("Yes — see note" / "No"), not color alone | Manual + screenshot | Planned |
-| STYLE-04 | UI Style | ui-spec §6 | Focus states on dashboard cards and Actions Taken form controls | Visible focus ring on keyboard Tab through every interactive element | Manual + screenshot | Planned |
+| STYLE-01 | UI Style | ui-spec §6 | Zen Green tokens on Dashboard + Actions Taken components (color, spacing, radius) | Matches design tokens from `docs/lab-02/ui-spec.md`; no ad-hoc hex values | Manual + visual check, screenshots in `artifacts/lab-04/screenshots/` | Pass |
+| STYLE-02 | UI Style | ui-spec §7 item 1 | App header wordmark | Reads "TokTickIT", not "TikTockIT" | Manual + screenshot | Pass |
+| STYLE-03 | UI Style | ui-spec §3 | Follow-Up badge non-color cue | Badge shows icon/text ("Yes — see note" / "No"), not color alone | Manual + screenshot | Pass |
+| STYLE-04 | UI Style | ui-spec §6 | Focus states on dashboard cards and Actions Taken form controls | Visible focus ring on keyboard Tab through every interactive element | Manual + screenshot | Pass |
 
 ## 7. Responsive Tests
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 |---|---|---|---|---|---|---|
-| RESP-01 | Responsive | ui-spec §1 | IT Staff dashboard at desktop/tablet/mobile widths | Card grid: 5–7-across → 2-across → 1 column; no horizontal scroll | Manual + screenshots (`artifacts/lab-04/screenshots/staff-dashboard/`) | Planned |
-| RESP-02 | Responsive | ui-spec §2 | Requester dashboard at desktop/tablet/mobile widths | Same grid-to-stack behavior; no horizontal scroll | Manual + screenshots (`.../requester-dashboard/`) | Planned |
-| RESP-03 | Responsive | ui-spec §3 | Actions Taken table (desktop) vs. card layout (tablet/mobile) | Table on desktop, stacked cards on tablet/mobile; no clipped content | Manual + screenshots (`.../actions-taken/`) | Planned |
-| RESP-04 | Responsive | ui-spec §3 | Actions Taken create/edit form on mobile width | Form fields stack; Follow-up Note reveal doesn't overflow viewport | Manual + screenshot | Planned |
+| RESP-01 | Responsive | ui-spec §1 | IT Staff dashboard at desktop/tablet/mobile widths | Card grid: 5–7-across → 2-across → 1 column; no horizontal scroll | Manual + screenshots (`artifacts/lab-04/screenshots/staff-dashboard/`) | Pass |
+| RESP-02 | Responsive | ui-spec §2 | Requester dashboard at desktop/tablet/mobile widths | Same grid-to-stack behavior; no horizontal scroll | Manual + screenshots (`.../requester-dashboard/`) | Pass |
+| RESP-03 | Responsive | ui-spec §3 | Actions Taken table (desktop) vs. card layout (tablet/mobile) | Table on desktop, stacked cards on tablet/mobile; no clipped content | Manual + screenshots (`.../actions-taken/`) | Pass |
+| RESP-04 | Responsive | ui-spec §3 | Actions Taken create/edit form on mobile width | Form fields stack; Follow-up Note reveal doesn't overflow viewport | Manual + screenshot | Pass |
 
 ## 8. Authorization Tests
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
@@ -150,7 +150,7 @@ Every AC in `specification.md` §9 maps to at least one row above:
 
 ## 12. Completed Visual and Accessibility Checklist
 
-Completed for Issue #58 on 2026-09-28. Desktop is Playwright `chromium` (1280 × 720), tablet is
+Completed for Issues #58 and #59 on 2026-09-29, with the corrective QA pass recorded below. Desktop is Playwright `chromium` (1280 × 720), tablet is
 `tablet` (768 × 1024), and mobile is `mobile` (390 × 844). The screenshot tests load real Lab 4
 dashboard and Actions Taken flows rather than static fixture pages.
 
@@ -160,20 +160,22 @@ dashboard and Actions Taken flows rather than static fixture pages.
 |---|---|---|---|
 | IT Staff dashboard | `artifacts/lab-04/screenshots/staff-dashboard/dashboard-chromium.png` | `artifacts/lab-04/screenshots/staff-dashboard/dashboard-tablet.png` | `artifacts/lab-04/screenshots/staff-dashboard/dashboard-mobile.png` |
 | Requester dashboard | `artifacts/lab-04/screenshots/requester-dashboard/dashboard-chromium.png` | `artifacts/lab-04/screenshots/requester-dashboard/dashboard-tablet.png` | `artifacts/lab-04/screenshots/requester-dashboard/dashboard-mobile.png` |
-| Actions Taken (IT Staff) | `artifacts/lab-04/screenshots/actions-taken/staff-actions-chromium.png` | `artifacts/lab-04/screenshots/actions-taken/staff-actions-tablet.png` | `artifacts/lab-04/screenshots/actions-taken/staff-actions-mobile.png` |
+| Dashboard keyboard focus | `artifacts/lab-04/screenshots/focus-state/dashboard-chromium.png` | `artifacts/lab-04/screenshots/focus-state/dashboard-tablet.png` | `artifacts/lab-04/screenshots/focus-state/dashboard-mobile.png` |
+| Header keyboard focus | `artifacts/lab-04/screenshots/header-focus/dashboard-chromium.png` | `artifacts/lab-04/screenshots/header-focus/dashboard-tablet.png` | `artifacts/lab-04/screenshots/header-focus/dashboard-mobile.png` |
+| Actions Taken list, validation, edit, and Requester read-only | `artifacts/lab-04/screenshots/actions-taken/*-chromium.png` | `artifacts/lab-04/screenshots/actions-taken/*-tablet.png` | `artifacts/lab-04/screenshots/actions-taken/*-mobile.png` |
 
 ### Completed checks
 
 | # | Check | Result | Evidence / implementation |
 |---|---|---|---|
 | 1 | Zen Green visual consistency | Pass | New dashboard cards, buttons, panels, badges, and Actions Taken reuse the existing green palette, borders, spacing, and typography. |
-| 2 | Status and IT priority are understandable without color | Pass | Every status and priority badge includes a text label (for example, `New`, `Resolved`, `Medium`); color is supplementary. |
+| 2 | Status and IT priority are understandable without color | Pass | Shared dashboard status badges use the same blue/green/amber/red/neutral status mapping as Ticket Queue; every status and priority badge includes a text label. |
 | 3 | Private versus shared content is distinct | Pass | Staff Ticket Detail labels the private tab `🔒 Internal Notes`; Public Comments and Attachments remain separately named. |
 | 4 | Semantic controls and accessible names | Pass | Dashboard cards are native buttons with descriptive `aria-label`s; form fields have associated labels; Follow-Up is a labelled radio fieldset; status control has a visible label. |
-| 5 | Keyboard operation and visible focus | Pass | Dashboard cards, Quick Actions, navigation, Actions Taken controls, form inputs, and status controls are native keyboard-focusable elements. `:focus-visible` uses a 3px Zen Green outline with an offset. |
-| 6 | Dashboard drill-downs | Pass | Requester cards route to filtered My Tickets; Staff cards route to filtered My Queue; Search Tickets focuses the Queue Search input. Component and E2E tests cover these handlers. |
+| 5 | Keyboard operation and visible focus | Pass | Dashboard cards, Quick Actions, navigation, Actions Taken controls, form inputs, and status controls are native keyboard-focusable elements. `:focus-visible` uses a 3px dark-green outline (white in the green header) with an offset. Follow-Up radios share a `name`, enabling native arrow-key selection. Staff Detail tabs implement tab, tabpanel, `aria-controls`, roving `tabIndex`, and Arrow/Home/End navigation. |
+| 6 | Dashboard drill-downs | Pass | Requester My Open Tickets routes to the documented New/Open/In Progress/Reopened set; other cards route to their matching status. Staff cards route to filtered My Queue; Search Tickets focuses the Queue Search input. Component and E2E tests cover these handlers. |
 | 7 | Loading, empty, error, conflict, and validation feedback | Pass | Dashboards use skeleton/empty/retry states; Actions Taken uses labelled loading, validation, server-error, and stale-update feedback; workflow exposes resolution-gate and stale-update messages. |
-| 8 | Responsive layout and no horizontal page overflow | Pass | Cards use desktop grids, tablet wrapping, and mobile stacking. Actions Taken switches from desktop table to stacked cards below the large breakpoint. Screenshot review at all three required viewports found no clipping or page-level horizontal overflow. |
+| 8 | Responsive layout and no horizontal page overflow | Pass | Cards use desktop grids, tablet wrapping, and mobile stacking. Actions Taken switches from desktop table to stacked cards below the large breakpoint. Mobile header navigation uses compact no-wrap controls. Screenshot review at all three required viewports found no clipping or page-level horizontal overflow. |
 | 9 | Existing workflow remains reachable | Pass | Dashboard is the authenticated landing screen; role navigation exposes My Tickets/Create Ticket to Requesters, My Queue to Staff, and Dashboard/My Queue/Users to Administrators. |
 | 10 | Administrator dashboard behavior | Pass | Administrator reuses the Staff Dashboard and retains Users navigation; covered in `client/tests/e2e/lab-04/dashboards.spec.ts`. |
 
@@ -188,5 +190,14 @@ npx playwright test tests/e2e/lab-04/dashboards.spec.ts --project=chromium --pro
 ```
 
 The screenshot capture is built into the two Lab 4 E2E files above, so rerunning them refreshes the
-evidence paths in this section. No unresolved visual or accessibility findings remain for the new
-Lab 4 dashboard and Actions Taken screens.
+evidence paths in this section. For final submission, reseed the database before recapturing
+screenshots so dashboard counts are deterministic; E2E runs intentionally create test Tickets.
+
+### Approved scope decisions
+
+- The Staff Dashboard represents **Unassigned** as an actionable operational tile and IT Priority as
+  three filter buttons. Both link to the required queue filters and are documented UI variations of
+  the handout's compact metric-card requirement.
+- Staff Create Ticket remains omitted. The backend authorization matrix permits Ticket creation only
+  to Requesters, and exposing a Staff CTA that fails with 403 would be misleading. Lab 3 explicitly
+  made that Staff navigation item optional.

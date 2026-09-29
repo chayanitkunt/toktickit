@@ -88,7 +88,7 @@ its filter directly in the URL (IT Staff Ticket Queue: `/staff/tickets`; Request
 
 | Parameter | Values | Applies to |
 |---|---|---|
-| `status` | `NEW\|OPEN\|IN_PROGRESS\|WAITING_FOR_REQUESTER\|RESOLVED\|CLOSED\|REOPENED\|CANCELLED` | Both |
+| `status` | One status, or a comma-separated list of statuses from `NEW\|OPEN\|IN_PROGRESS\|WAITING_FOR_REQUESTER\|RESOLVED\|CLOSED\|REOPENED\|CANCELLED` | Both; `GET /api/tickets` accepts a list for the Requester Dashboard's My Open Tickets drill-down. Invalid or empty list members return 400. |
 | `ownerId` | `me\|unassigned\|<id>` | Staff queue only |
 | `priority` | `LOW\|MEDIUM\|HIGH` | Staff queue only (filters `itPriority`) |
 

@@ -38,7 +38,7 @@ function AuthenticatedShell() {
   const [screen, setScreen] = useState<Screen>(
     "dashboard"
   );
-  const [ticketStatusFilter, setTicketStatusFilter] = useState<CurrentStatus | undefined>();
+  const [ticketStatusFilter, setTicketStatusFilter] = useState<CurrentStatus[] | undefined>();
   const [queueFilter, setQueueFilter] = useState<{ status?: CurrentStatus; owner?: "me" | "unassigned" | "all"; priority?: RequestedPriority }>({});
   const [focusQueueSearch, setFocusQueueSearch] = useState(false);
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(
@@ -63,8 +63,8 @@ function AuthenticatedShell() {
     setScreen("tickets");
   }
 
-  function handleViewTickets(status?: CurrentStatus) {
-    setTicketStatusFilter(status);
+  function handleViewTickets(statuses?: CurrentStatus[]) {
+    setTicketStatusFilter(statuses);
     setScreen("tickets");
   }
 
@@ -310,10 +310,10 @@ function AuthenticatedShell() {
 
         {isRequester && screen === "tickets" && (
           <MyTickets
-            key={ticketStatusFilter ?? "all"}
+            key={ticketStatusFilter?.join(",") ?? "all"}
             onCreateTicket={handleCreateTicket}
             onOpenTicket={handleOpenTicket}
-            initialStatus={ticketStatusFilter}
+            initialStatuses={ticketStatusFilter}
           />
         )}
 

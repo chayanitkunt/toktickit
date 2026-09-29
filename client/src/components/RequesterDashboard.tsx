@@ -5,19 +5,16 @@ import {
   type DashboardTicket,
   type RequesterDashboardData,
 } from "../api";
+import TicketStatusBadge from "./TicketStatusBadge";
 
 interface Props {
   name: string;
   onOpenTicket: (id: number) => void;
-  onViewTickets: (status?: CurrentStatus) => void;
+  onViewTickets: (statuses?: CurrentStatus[]) => void;
   onCreateTicket: () => void;
 }
 
-const statusLabels: Record<CurrentStatus, string> = {
-  NEW: "New", OPEN: "Open", IN_PROGRESS: "In Progress",
-  WAITING_FOR_REQUESTER: "Waiting for Requester", RESOLVED: "Resolved",
-  CLOSED: "Closed", REOPENED: "Reopened", CANCELLED: "Cancelled",
-};
+const OPEN_TICKET_STATUSES: CurrentStatus[] = ["NEW", "OPEN", "IN_PROGRESS", "REOPENED"];
 
 function TicketList({ tickets, onOpenTicket }: { tickets: DashboardTicket[]; onOpenTicket: (id: number) => void }) {
   return <ul className="list-group list-group-flush">{tickets.map((ticket) => <li key={ticket.id} className="list-group-item px-0 py-3">
@@ -26,7 +23,7 @@ function TicketList({ tickets, onOpenTicket }: { tickets: DashboardTicket[]; onO
         <button type="button" className="btn btn-link p-0 text-start fw-semibold" style={{ color: "#166534" }} onClick={() => onOpenTicket(ticket.id)}>{ticket.ticketNumber}</button>
         <div className="small text-truncate">{ticket.summary}</div>
       </div>
-      <div className="col-7 col-md-3"><span className="badge rounded-pill" style={{ backgroundColor: "#DCFCE7", color: "#166534" }}>{statusLabels[ticket.currentStatus]}</span></div>
+      <div className="col-7 col-md-3"><TicketStatusBadge status={ticket.currentStatus} /></div>
       <div className="col-5 col-md-3 small text-muted text-md-end">{new Date(ticket.updatedAt).toLocaleString()}</div>
     </div>
   </li>)}</ul>;
@@ -43,11 +40,11 @@ export default function RequesterDashboard({ name, onOpenTicket, onViewTickets, 
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const cards: { label: string; value: number; status?: CurrentStatus }[] = data ? [
-    { label: "My Open Tickets", value: data.myOpenTickets },
-    { label: "Waiting for Requester", value: data.waitingForRequester, status: "WAITING_FOR_REQUESTER" },
-    { label: "Resolved", value: data.resolved, status: "RESOLVED" },
-    { label: "Closed", value: data.closed, status: "CLOSED" },
+  const cards: { label: string; value: number; statuses?: CurrentStatus[] }[] = data ? [
+    { label: "My Open Tickets", value: data.myOpenTickets, statuses: OPEN_TICKET_STATUSES },
+    { label: "Waiting for Requester", value: data.waitingForRequester, statuses: ["WAITING_FOR_REQUESTER"] },
+    { label: "Resolved", value: data.resolved, statuses: ["RESOLVED"] },
+    { label: "Closed", value: data.closed, statuses: ["CLOSED"] },
   ] : [];
 
   return <section aria-labelledby="requester-dashboard-heading">
@@ -60,7 +57,7 @@ export default function RequesterDashboard({ name, onOpenTicket, onViewTickets, 
 
     {loading ? <div className="row row-cols-1 row-cols-md-2 row-cols-xl-4 g-3" aria-label="Loading dashboard">{[1, 2, 3, 4].map((key) => <div key={key} className="col"><div className="card shadow-sm placeholder-glow"><div className="card-body p-4"><span className="placeholder col-8" /><span className="placeholder col-4 d-block mt-4" /></div></div></div>)}</div> : data && <>
       <div className="row row-cols-1 row-cols-md-2 row-cols-xl-4 g-3 mb-4">{cards.map((card) => <div key={card.label} className="col">
-        <button type="button" className="card dashboard-card w-100 h-100 text-start shadow-sm" aria-label={`${card.label}: ${card.value}. View all Tickets`} onClick={() => onViewTickets(card.status)}>
+        <button type="button" className="card dashboard-card w-100 h-100 text-start shadow-sm" aria-label={`${card.label}: ${card.value}. View all Tickets`} onClick={() => onViewTickets(card.statuses)}>
           <div className="card-body p-4"><div className="fw-medium mb-4" style={{ color: "#14231C" }}>{card.label}</div><div className="display-5 fw-semibold mb-3" style={{ color: "#14231C" }}>{card.value}</div><span className="small" style={{ color: "#166534" }}>View all →</span></div>
         </button>
       </div>)}</div>

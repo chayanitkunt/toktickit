@@ -8,9 +8,9 @@ const REQUESTER = "quinn.requester@example.com";
 const STAFF = "michael.brown@tiktockit.com";
 const screenshotRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../artifacts/lab-04/screenshots/actions-taken");
 
-function screenshotPath(project: string) {
+function screenshotPath(name: string, project: string) {
   fs.mkdirSync(screenshotRoot, { recursive: true });
-  return path.join(screenshotRoot, `staff-actions-${project}.png`);
+  return path.join(screenshotRoot, `${name}-${project}.png`);
 }
 
 async function login(page: Page, email: string) {
@@ -46,6 +46,9 @@ test("IT Staff records an Action Taken and the Requester sees it read-only", asy
   await row.getByRole("button").click();
   await page.getByRole("tab", { name: /actions taken/i }).click();
   await page.getByRole("button", { name: /add action taken/i }).click();
+  await page.getByRole("button", { name: /^add action taken$/i }).click();
+  await expect(page.getByText(/Action Description is required/i)).toBeVisible();
+  await page.screenshot({ path: screenshotPath("staff-actions-validation", testInfo.project.name), fullPage: true });
   await page.getByLabel("Action Description").fill("Reseated the network cable.");
   await page.getByLabel("Result").fill("Connection restored.");
   await page.getByLabel("Yes").click();
@@ -58,7 +61,10 @@ test("IT Staff records an Action Taken and the Requester sees it read-only", asy
     ? page.locator(".d-lg-block")
     : page.locator(".d-lg-none");
   await expect(visibleActionLayout.getByText("Reseated the network cable.")).toBeVisible();
-  await page.screenshot({ path: screenshotPath(testInfo.project.name), fullPage: true });
+  await page.screenshot({ path: screenshotPath("staff-actions-list", testInfo.project.name), fullPage: true });
+  await visibleActionLayout.getByRole("button", { name: /^edit action taken/i }).click();
+  await expect(page.getByRole("heading", { name: /edit action taken/i })).toBeVisible();
+  await page.screenshot({ path: screenshotPath("staff-actions-edit", testInfo.project.name), fullPage: true });
   await logout(page);
 
   await login(page, REQUESTER);
@@ -66,6 +72,7 @@ test("IT Staff records an Action Taken and the Requester sees it read-only", asy
   await page.getByLabel(/^search$/i).fill(summary);
   await page.locator("tbody tr", { hasText: summary }).getByRole("button").click();
   await expect(visibleActionLayout.getByText("Reseated the network cable.")).toBeVisible();
+  await page.screenshot({ path: screenshotPath("requester-actions-readonly", testInfo.project.name), fullPage: true });
   await expect(page.getByRole("button", { name: /add action taken/i })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /^edit$/i })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^edit action taken/i })).toHaveCount(0);
 });
