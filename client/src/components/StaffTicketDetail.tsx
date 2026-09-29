@@ -34,6 +34,7 @@ interface StaffTicketDetailProps {
 }
 
 type ActiveTab = "comments" | "notes" | "attachments" | "actions";
+const TABS: ActiveTab[] = ["comments", "notes", "attachments", "actions"];
 
 function formatDate(date?: string) {
   if (!date) return "-";
@@ -461,6 +462,16 @@ export default function StaffTicketDetail({
     } as const;
   }
 
+  function handleTabKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, tab: ActiveTab) {
+    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft" && event.key !== "Home" && event.key !== "End") return;
+    event.preventDefault();
+    const current = TABS.indexOf(tab);
+    const next = event.key === "Home" ? 0 : event.key === "End" ? TABS.length - 1 : (current + (event.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length;
+    const nextTab = TABS[next];
+    setActiveTab(nextTab);
+    document.getElementById(`ticket-${ticketId}-tab-${nextTab}`)?.focus();
+  }
+
   return (
     <div className="py-3">
       <button
@@ -776,46 +787,62 @@ export default function StaffTicketDetail({
               <button
                 type="button"
                 role="tab"
+                id={`ticket-${ticketId}-tab-comments`}
+                aria-controls={`ticket-${ticketId}-panel-comments`}
                 aria-selected={activeTab === "comments"}
+                tabIndex={activeTab === "comments" ? 0 : -1}
                 className="btn"
                 style={tabButtonStyle("comments")}
                 onClick={() => setActiveTab("comments")}
+                onKeyDown={(event) => handleTabKeyDown(event, "comments")}
               >
                 Public Comments ({comments.length})
               </button>
               <button
                 type="button"
                 role="tab"
+                id={`ticket-${ticketId}-tab-notes`}
+                aria-controls={`ticket-${ticketId}-panel-notes`}
                 aria-selected={activeTab === "notes"}
+                tabIndex={activeTab === "notes" ? 0 : -1}
                 className="btn"
                 style={tabButtonStyle("notes")}
                 onClick={() => setActiveTab("notes")}
+                onKeyDown={(event) => handleTabKeyDown(event, "notes")}
               >
                 🔒 Internal Notes ({notes.length})
               </button>
               <button
                 type="button"
                 role="tab"
+                id={`ticket-${ticketId}-tab-attachments`}
+                aria-controls={`ticket-${ticketId}-panel-attachments`}
                 aria-selected={activeTab === "attachments"}
+                tabIndex={activeTab === "attachments" ? 0 : -1}
                 className="btn"
                 style={tabButtonStyle("attachments")}
                 onClick={() => setActiveTab("attachments")}
+                onKeyDown={(event) => handleTabKeyDown(event, "attachments")}
               >
                 Attachments ({activeAttachments.length})
               </button>
               <button
                 type="button"
                 role="tab"
+                id={`ticket-${ticketId}-tab-actions`}
+                aria-controls={`ticket-${ticketId}-panel-actions`}
                 aria-selected={activeTab === "actions"}
+                tabIndex={activeTab === "actions" ? 0 : -1}
                 className="btn"
                 style={tabButtonStyle("actions")}
                 onClick={() => setActiveTab("actions")}
+                onKeyDown={(event) => handleTabKeyDown(event, "actions")}
               >
                 Actions Taken
               </button>
             </div>
 
-            <div className="card-body p-3 p-md-4">
+            <div className="card-body p-3 p-md-4" role="tabpanel" id={`ticket-${ticketId}-panel-${activeTab}`} aria-labelledby={`ticket-${ticketId}-tab-${activeTab}`}>
               {activeTab === "comments" && (
                 <div>
                   {commentsError && (

@@ -34,7 +34,7 @@ describe("ActionsTaken", () => {
     expect((await screen.findAllByText("Replaced laptop battery.")).length).toBe(2);
     expect(screen.getAllByText("Tested VPN").length).toBe(2);
     expect(screen.queryByRole("button", { name: /add action taken/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^edit$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^edit action taken/i })).not.toBeInTheDocument();
   });
 
   it("validates follow-up notes and submits an authorized create once", async () => {
@@ -59,7 +59,7 @@ describe("ActionsTaken", () => {
     mockApi({ update: () => response({ error: "This Action Taken has been updated by someone else", code: "stale_action_taken" }, 409) });
     const user = userEvent.setup();
     render(<ActionsTaken ticketId={101} canEdit />);
-    await user.click((await screen.findAllByRole("button", { name: /^edit$/i }))[0]);
+    await user.click((await screen.findAllByRole("button", { name: /^edit action taken/i }))[0]);
     expect(screen.getByLabelText("Action Date/Time")).toHaveAttribute("readonly");
     expect(screen.getByLabelText("Performed By")).toHaveValue("Michael Brown");
     expect(screen.getByLabelText("Performed By")).toHaveAttribute("readonly");

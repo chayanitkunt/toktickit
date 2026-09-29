@@ -1,15 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { getStaffDashboard, type CurrentStatus, type DashboardTicket, type StaffDashboardData } from "../api";
+import TicketStatusBadge from "./TicketStatusBadge";
 
 interface Props { name: string; onOpenTicket: (id: number) => void; onViewQueue: (filter?: { status?: CurrentStatus; owner?: "me" | "unassigned"; priority?: "LOW" | "MEDIUM" | "HIGH" }) => void; onSearchTickets: () => void; }
 
-function StatusBadge({ status }: { status: CurrentStatus }) {
-  const labels: Record<CurrentStatus, string> = { NEW: "New", OPEN: "Open", IN_PROGRESS: "In Progress", WAITING_FOR_REQUESTER: "Waiting for Requester", RESOLVED: "Resolved", CLOSED: "Closed", REOPENED: "Reopened", CANCELLED: "Cancelled" };
-  return <span className="badge rounded-pill" style={{ backgroundColor: "#DCFCE7", color: "#166534" }}>{labels[status]}</span>;
-}
-
 function RecentTickets({ tickets, onOpenTicket }: { tickets: DashboardTicket[]; onOpenTicket: (id: number) => void }) {
-  return <ul className="list-group list-group-flush">{tickets.map((ticket) => <li className="list-group-item px-0 py-3" key={ticket.id}><div className="row align-items-center g-2"><div className="col-12 col-md-6"><button type="button" className="btn btn-link p-0 text-start fw-semibold" style={{ color: "#166534" }} onClick={() => onOpenTicket(ticket.id)}>{ticket.ticketNumber}</button><div className="small text-truncate">{ticket.summary}</div></div><div className="col-7 col-md-3"><StatusBadge status={ticket.currentStatus} /></div><div className="col-5 col-md-3 small text-muted text-md-end">{new Date(ticket.updatedAt).toLocaleString()}</div></div></li>)}</ul>;
+  return <ul className="list-group list-group-flush">{tickets.map((ticket) => <li className="list-group-item px-0 py-3" key={ticket.id}><div className="row align-items-center g-2"><div className="col-12 col-md-6"><button type="button" className="btn btn-link p-0 text-start fw-semibold" style={{ color: "#166534" }} onClick={() => onOpenTicket(ticket.id)}>{ticket.ticketNumber}</button><div className="small text-truncate">{ticket.summary}</div></div><div className="col-7 col-md-3"><TicketStatusBadge status={ticket.currentStatus} /></div><div className="col-5 col-md-3 small text-muted text-md-end">{new Date(ticket.updatedAt).toLocaleString()}</div></div></li>)}</ul>;
 }
 
 export default function StaffDashboard({ name, onOpenTicket, onViewQueue, onSearchTickets }: Props) {

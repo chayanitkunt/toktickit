@@ -13,8 +13,10 @@ describe("RequesterDashboard", () => {
     const user = userEvent.setup(); const onViewTickets = vi.fn(); const onOpenTicket = vi.fn();
     render(<RequesterDashboard name="Quinn" onCreateTicket={vi.fn()} onOpenTicket={onOpenTicket} onViewTickets={onViewTickets} />);
     expect(await screen.findByText("4")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /My Open Tickets: 4/i }));
+    expect(onViewTickets).toHaveBeenCalledWith(["NEW", "OPEN", "IN_PROGRESS", "REOPENED"]);
     await user.click(screen.getByRole("button", { name: /Waiting for Requester: 1/i }));
-    expect(onViewTickets).toHaveBeenCalledWith("WAITING_FOR_REQUESTER");
+    expect(onViewTickets).toHaveBeenCalledWith(["WAITING_FOR_REQUESTER"]);
     await user.click(screen.getByRole("button", { name: "TKT-2026-000008" }));
     expect(onOpenTicket).toHaveBeenCalledWith(8);
   });

@@ -727,17 +727,17 @@ app.get("/api/tickets", ...requireRequester, async (req: Request, res: Response)
         "CANCELLED",
       ];
 
-      if (
-        typeof status !== "string" ||
-        !allowedStatuses.includes(status)
-      ) {
+      const requestedStatuses = typeof status === "string" ? status.split(",") : [];
+      if (!requestedStatuses.length || requestedStatuses.some((value) => !allowedStatuses.includes(value))) {
         return res.status(400).json({
           statusCode: 400,
           message: "Invalid status",
         });
       }
 
-      where.currentStatus = status;
+      where.currentStatus = requestedStatuses.length === 1
+        ? requestedStatuses[0]
+        : { in: requestedStatuses };
     }
 
     // ---------------------------------------------------------

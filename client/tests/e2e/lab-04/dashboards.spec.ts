@@ -22,12 +22,30 @@ async function login(page: Page, email: string) {
   await page.getByRole("button", { name: /sign in/i }).click();
 }
 
+async function focusWithKeyboard(page: Page, locator: ReturnType<Page["getByRole"]>) {
+  if (await locator.evaluate((element) => document.activeElement === element)) return;
+  for (let step = 0; step < 20; step += 1) {
+    await page.keyboard.press("Tab");
+    if (await locator.evaluate((element) => document.activeElement === element)) return;
+  }
+  throw new Error("Could not reach the requested control using Tab navigation.");
+}
+
 test("Requester and IT Staff dashboards load and drill into their existing detailed views", async ({ page }, testInfo) => {
   const summary = `E2E Dashboard ${Date.now()}`;
   await login(page, REQUESTER);
   await expect(page.locator("#requester-dashboard-heading")).toBeVisible();
+  const dashboardNav = page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "Dashboard", exact: true });
+  await focusWithKeyboard(page, dashboardNav);
+  await expect(dashboardNav).toHaveCSS("outline-style", "solid");
+  await page.screenshot({ path: screenshotPath("header-focus", testInfo.project.name), fullPage: true });
   await expect(page.getByRole("button", { name: /My Open Tickets:/i })).toBeVisible();
   await page.screenshot({ path: screenshotPath("requester-dashboard", testInfo.project.name), fullPage: true });
+  const openTicketsCard = page.getByRole("button", { name: /My Open Tickets:/i });
+  await focusWithKeyboard(page, openTicketsCard);
+  await expect(openTicketsCard).toBeFocused();
+  await expect(openTicketsCard).toHaveCSS("outline-style", "solid");
+  await page.screenshot({ path: screenshotPath("focus-state", testInfo.project.name), fullPage: true });
   await page.getByRole("button", { name: /Create Ticket.*Submit a new request/i }).click();
   const selects = page.locator("select");
   await selects.nth(0).selectOption({ label: "Hardware" });
