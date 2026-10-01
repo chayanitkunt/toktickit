@@ -14,6 +14,9 @@ CPE 334, Introduction to Software Engineering in the Age of AI Agents.
   IT Staff Ticket Detail workflow, and a minimalist Administrator User
   Management screen. All Lab 2 Requester functions continue to work using
   the authenticated Requester identity.
+- **Lab 4** completes the service-desk workflow with auditable Actions Taken,
+  resolution-gate and stale-update protection, role dashboards, and final
+  responsive/accessibility hardening.
 
 ## Technology Stack
 
@@ -33,7 +36,8 @@ toktickit/
 │   ├── src/
 │   │   ├── components/        # Login, ChangePassword, CreateTicket, MyTickets,
 │   │   │                       # TicketDetail, StaffTicketQueue, StaffTicketDetail,
-│   │   │                       # UserManagement, AuthVisuals
+│   │   │                       # UserManagement, Actions Taken, Dashboards,
+│   │   │                       # and shared UI components
 │   │   ├── AuthContext.tsx     # Authenticated session state (replaces the old
 │   │   │                       # Development Requester context)
 │   │   └── api.ts
@@ -41,8 +45,10 @@ toktickit/
 │       ├── lab-02/            # Vitest UI component tests
 │       ├── lab-03/            # Vitest UI component tests (Login, ChangePassword,
 │       │                       # StaffTicketQueue, StaffTicketDetail, UserManagement)
+│       ├── lab-04/            # Actions Taken and Dashboard component tests
 │       └── e2e/               # Playwright E2E, responsive, and visual QA specs
-│           └── lab-03/        # Lab 3 auth, staff-ticket-flow, and admin E2E specs
+│           ├── lab-03/        # Lab 3 auth, staff-ticket-flow, and admin E2E specs
+│           └── lab-04/        # Actions Taken, workflow, and dashboard E2E specs
 ├── server/
 │   ├── prisma/                 # schema.prisma, migrations, seed.ts
 │   ├── src/                    # Express app and routes
@@ -50,15 +56,19 @@ toktickit/
 │       ├── lab-02/             # Vitest + Supertest API tests
 │       └── lab-03/             # Auth, authorization, staff queue/detail,
 │                                # comments/notes, and admin API tests
+│       └── lab-04/             # Actions Taken, workflow, and dashboard API tests
 ├── docs/
 │   ├── lab-01/
 │   ├── lab-02/                 # specification.md, tests.md, ui-spec.md,
 │   │                            # api-spec.md, reviewer.md, ai-use.md
-│   └── lab-03/                 # specification.md, tests.md, ui-spec.md,
-│                                # api-spec.md, reviewer.md, ai-use.md
+│   ├── lab-03/                 # specification.md, tests.md, ui-spec.md,
+│   │                            # api-spec.md, reviewer.md, ai-use.md
+│   └── lab-04/                 # Sprint 4 contract, test evidence, reviewer,
+│                                # AI-use, and PDF submission source
 ├── artifacts/
 │   ├── lab-02/screenshots/     # Desktop/tablet/mobile visual QA evidence
-│   └── lab-03/screenshots/     # Desktop/tablet/mobile visual QA evidence
+│   ├── lab-03/screenshots/     # Desktop/tablet/mobile visual QA evidence
+│   └── lab-04/screenshots/     # Dashboard, Actions Taken, and focus evidence
 ├── .gitignore
 └── README.md
 ```
@@ -120,12 +130,12 @@ cd client
 npx playwright test
 ```
 
-This suite runs every E2E, responsive-layout, and visual QA spec — Lab 2 and
-Lab 3 — across three Playwright projects — `chromium` (desktop, 1280px),
+This suite runs every E2E, responsive-layout, and visual QA spec — Labs 2–4 —
+across three Playwright projects — `chromium` (desktop, 1280px),
 `tablet` (768px), and `mobile` (390px, table pagination check skipped by
 design since pagination is already covered on desktop/tablet). Screenshots
-are written to `artifacts/lab-02/screenshots/` and
-`artifacts/lab-03/screenshots/` respectively.
+are written to `artifacts/lab-02/screenshots/`,
+`artifacts/lab-03/screenshots/`, and `artifacts/lab-04/screenshots/`.
 
 ```bash
 npx playwright show-report
@@ -188,6 +198,18 @@ opens the last HTML report.
   prevents duplicate emails, self-deactivation by the acting Administrator,
   and removing the last active Administrator.
 
+## Lab 4 Features
+
+- **Actions Taken** — IT Staff and Administrators can create and update
+  ticket-scoped work records. Requesters can read Actions Taken for their own
+  Tickets. The backend derives the performer from the authenticated session.
+- **Final Ticket workflow** — authorized status transitions, an Action Taken
+  resolution gate, and stale-update protection are enforced by the backend.
+- **Role dashboards** — Requesters see only their own Ticket summaries; IT
+  Staff and Administrators see concise operational metrics and drill-downs.
+- **Final hardening** — consistent feedback, keyboard operation, visible
+  focus, status text cues, and responsive evidence across Lab 4 screens.
+
 ## Documentation
 
 Lab 3 documentation is available in:
@@ -217,3 +239,15 @@ Including:
 
 Lab 2 documentation remains available in `docs/lab-02/`, and Lab 1
 documentation remains available in `docs/lab-01/`.
+
+Lab 4 documentation is available in `docs/lab-04/`:
+
+- `specification.md`, `ui-spec.md`, and `api-spec.md` — the Sprint 4
+  engineering, user-interface, and REST contracts.
+- `tests.md` — test traceability plus final visual/accessibility evidence.
+- `reviewer.md` — PR/review evidence and final-release checklist. Complete
+  the GitHub review and release fields before submission.
+- `ai-use.md` — selected AI prompt log and reflection.
+- `submission.md` — PDF-ready source with the required `Answer Part 1`
+  through `Answer Part 9` headings. Complete its `TODO` items, then export it
+  as the one required submission PDF.
