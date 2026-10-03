@@ -248,6 +248,4 @@ Lab 4 documentation is available in `docs/lab-04/`:
 - `reviewer.md` — PR/review evidence and final-release checklist. Complete
   the GitHub review and release fields before submission.
 - `ai-use.md` — selected AI prompt log and reflection.
-- `submission.md` — PDF-ready source with the required `Answer Part 1`
-  through `Answer Part 9` headings. Complete its `TODO` items, then export it
-  as the one required submission PDF.
+
